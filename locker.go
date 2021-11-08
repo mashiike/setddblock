@@ -3,7 +3,6 @@ package ddblock
 import (
 	"context"
 	"errors"
-	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -236,7 +235,6 @@ func (l *DynamoDBLocker) bailout(err error) {
 }
 
 func Recover(e interface{}) error {
-	log.Println(e)
 	if e != nil {
 		b, ok := e.(bailoutErr)
 		if !ok {

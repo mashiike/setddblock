@@ -41,6 +41,10 @@ func TestDDBLock(t *testing.T) {
 	workerNum := 10
 	countMax := 10
 	f1 := func(workerID int, l sync.Locker) {
+		defer func() {
+			err := ddblock.Recover(recover())
+			require.NoError(t, err)
+		}()
 		l.Lock()
 		defer l.Unlock()
 		t.Logf("f1 wroker_id = %d start", workerID)
@@ -52,6 +56,10 @@ func TestDDBLock(t *testing.T) {
 		t.Logf("f1 wroker_id = %d finish", workerID)
 	}
 	f2 := func(workerID int, l sync.Locker) {
+		defer func() {
+			err := ddblock.Recover(recover())
+			require.NoError(t, err)
+		}()
 		l.Lock()
 		defer l.Unlock()
 		t.Logf("f2 wroker_id = %d start", workerID)
