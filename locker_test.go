@@ -85,7 +85,7 @@ func TestDDBLock(t *testing.T) {
 				"ddb://test/item2",
 				ddblock.WithDelay(true),
 				ddblock.WithEndpoint(endpoint),
-				ddblock.WithLeaseDuration(10*time.Millisecond),
+				ddblock.WithLeaseDuration(50*time.Millisecond),
 				ddblock.WithLogger(logger),
 			)
 			require.NoError(t, err)

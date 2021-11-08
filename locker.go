@@ -49,6 +49,12 @@ func New(urlStr string, optFns ...func(*Options)) (*DynamoDBLocker, error) {
 	for _, optFn := range optFns {
 		optFn(opts)
 	}
+	if opts.LeaseDuration > time.Minute {
+		return nil, errors.New("lease duration is so long, please set under 1 minute")
+	}
+	if opts.LeaseDuration < 100*time.Millisecond {
+		return nil, errors.New("lease duration is so short, please set over 100 milli second")
+	}
 	svc, err := newDynamoDBService(opts)
 	if err != nil {
 		return nil, err
