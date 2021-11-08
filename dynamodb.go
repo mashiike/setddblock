@@ -49,7 +49,7 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 		))
 	}
 
-	awsCfg, err := awsConfig.LoadDefaultConfig(context.Background(), awsOpts...)
+	awsCfg, err := awsConfig.LoadDefaultConfig(opts.ctx, awsOpts...)
 	if err != nil {
 		return nil, err
 	}

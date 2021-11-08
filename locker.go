@@ -25,6 +25,7 @@ type DynamoDBLocker struct {
 	unlockSignal  chan struct{}
 	locked        bool
 	wg            sync.WaitGroup
+	defaultCtx    context.Context
 }
 
 //New returns *DynamoDBLocker
@@ -66,6 +67,7 @@ func New(urlStr string, optFns ...func(*Options)) (*DynamoDBLocker, error) {
 		itemID:        itemID,
 		svc:           svc,
 		leaseDuration: opts.LeaseDuration,
+		defaultCtx:    opts.ctx,
 	}, nil
 }
 
@@ -191,7 +193,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 
 //Lock for implements sync.Locker
 func (l *DynamoDBLocker) Lock() {
-	if err := l.LockWithErr(context.Background()); err != nil {
+	if err := l.LockWithErr(l.defaultCtx); err != nil {
 		l.bailout(err)
 	}
 }
@@ -213,7 +215,7 @@ func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 
 //Unlock for implements sync.Locker
 func (l *DynamoDBLocker) Unlock() {
-	if err := l.UnlockWithErr(context.Background()); err != nil {
+	if err := l.UnlockWithErr(l.defaultCtx); err != nil {
 		l.bailout(err)
 	}
 }

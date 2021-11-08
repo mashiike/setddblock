@@ -1,6 +1,9 @@
 package setddblock
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Options are for changing the behavior of DynamoDB Locker and are changed by the function passed to the New () function.
 // See the WithXXX options for more information.
@@ -11,6 +14,7 @@ type Options struct {
 	Endpoint      string
 	Region        string
 	LeaseDuration time.Duration
+	ctx           context.Context
 }
 
 //Default values
@@ -23,6 +27,7 @@ func newOptions() *Options {
 		Logger:        voidLogger{},
 		LeaseDuration: DefaultLeaseDuration,
 		Delay:         true,
+		ctx:           context.Background(),
 	}
 }
 
@@ -80,5 +85,12 @@ func WithRegion(region string) func(opts *Options) {
 func WithLeaseDuration(d time.Duration) func(opts *Options) {
 	return func(opts *Options) {
 		opts.LeaseDuration = d
+	}
+}
+
+// WithContext specifies the Context used by Lock() and Unlock().
+func WithContext(ctx context.Context) func(opts *Options) {
+	return func(opts *Options) {
+		opts.ctx = ctx
 	}
 }
