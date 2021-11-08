@@ -33,8 +33,8 @@ func New(urlStr string, optFns ...func(*Options)) (*DynamoDBLocker, error) {
 	if err != nil {
 		return nil, err
 	}
-	if u.Scheme != "ddb" {
-		return nil, errors.New("scheme is not ddb")
+	if u.Scheme != "ddb" && u.Scheme != "dynamodb" {
+		return nil, errors.New("scheme is required ddb or dynamodb")
 	}
 	if u.Host == "" {
 		return nil, errors.New("table_name is required: ddb://<table_name>/<item_id>")
