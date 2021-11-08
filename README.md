@@ -4,6 +4,7 @@
 ![Github Actions test](https://github.com/mashiike/setddblock/workflows/Test/badge.svg?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/mashiike/setddblock)](https://goreportcard.com/report/mashiike/setddblock) 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/mashiike/setddblock/blob/master/LICENSE)
+[![Documentation](https://godoc.org/github.com/mashiike/setddblock?status.svg)](https://godoc.org/github.com/mashiike/setddblock)
 
 setddblock is setlock like command line tool with [AWS DynamoDB](https://aws.amazon.com/dynamodb/)
 
@@ -84,6 +85,7 @@ func () {
 Note: If Lock or Unlcok fails, for example because you can't connect to DynamoDB, it will panic.  
       If you don't want it to panic, use `LockWithError()` and `UnlockWithErr()`. Alternatively, use the `WithNoPanic` option.
 
+more infomation see [go doc](https://godoc.org/github.com/mashiike/setddblock).
 ## License
 
 see [LICENSE](https://github.com/mashiike/setddblock/blob/master/LICENSE) file.

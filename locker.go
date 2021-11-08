@@ -77,6 +77,7 @@ func (l *DynamoDBLocker) generateRevision() (string, error) {
 	return u.String(), nil
 }
 
+//LockWithErr try get lock.
 func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -188,12 +189,14 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	return nil
 }
 
+//Lock for implements sync.Locker
 func (l *DynamoDBLocker) Lock() {
 	if err := l.LockWithErr(context.Background()); err != nil {
 		l.bailout(err)
 	}
 }
 
+//UnlockWithErr unlocks. Delete DynamoDB items
 func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -208,6 +211,7 @@ func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 	return nil
 }
 
+//Unlock for implements sync.Locker
 func (l *DynamoDBLocker) Unlock() {
 	if err := l.UnlockWithErr(context.Background()); err != nil {
 		l.bailout(err)
@@ -239,6 +243,7 @@ func (l *DynamoDBLocker) bailout(err error) {
 	}
 }
 
+//Recover for Lock() and Unlock() panic
 func Recover(e interface{}) error {
 	if e != nil {
 		b, ok := e.(bailoutErr)
