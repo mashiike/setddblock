@@ -1,4 +1,4 @@
-package ddblock
+package setddblock
 
 import (
 	"context"
@@ -80,7 +80,7 @@ func (l *DynamoDBLocker) generateRevision() (string, error) {
 func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.logger.Println("[debug][ddblock] start LockWithErr")
+	l.logger.Println("[debug][setddblock] start LockWithErr")
 	if l.locked {
 		return errors.New("aleady lock granted")
 	}
@@ -88,7 +88,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	l.logger.Printf("[debug][ddblock] lock table exists = %v", exists)
+	l.logger.Printf("[debug][setddblock] lock table exists = %v", exists)
 	if !exists {
 		if err := l.svc.CreateLockTable(ctx, l.tableName); err != nil {
 			return err
@@ -102,7 +102,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 		return err
 	}
 
-	l.logger.Println("[debug][ddblock] try aruire lock")
+	l.logger.Println("[debug][setddblock] try aruire lock")
 	input := &lockInput{
 		TableName:     l.tableName,
 		ItemID:        l.itemID,
@@ -113,13 +113,13 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	l.logger.Println("[debug][ddblock] aquire lock reqult", lcokResult)
+	l.logger.Println("[debug][setddblock] aquire lock reqult", lcokResult)
 	if !lcokResult.LockGranted && !l.delay {
 		return errors.New("can not get lock")
 	}
 	for !lcokResult.LockGranted {
 		sleepTime := time.Until(lcokResult.NextHartbeatLimit)
-		l.logger.Printf("[debug][ddblock] wait for next aquire lock until %s (%s)", lcokResult.NextHartbeatLimit, sleepTime)
+		l.logger.Printf("[debug][setddblock] wait for next aquire lock until %s (%s)", lcokResult.NextHartbeatLimit, sleepTime)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -130,14 +130,14 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		l.logger.Printf("[debug][ddblock] retry aquire lock until %s", input)
+		l.logger.Printf("[debug][setddblock] retry aquire lock until %s", input)
 		lcokResult, err = l.svc.AquireLock(ctx, input)
 		if err != nil {
 			return err
 		}
-		l.logger.Printf("[debug][ddblock] now revision %s", lcokResult.Revision)
+		l.logger.Printf("[debug][setddblock] now revision %s", lcokResult.Revision)
 	}
-	l.logger.Println("[debug][ddblock] success lock granted")
+	l.logger.Println("[debug][setddblock] success lock granted")
 	l.locked = true
 	l.unlockSignal = make(chan struct{})
 	l.wg = sync.WaitGroup{}
@@ -147,19 +147,19 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 			if lcokResult != nil {
 				input.PravRevision = &lcokResult.Revision
 				if err := l.svc.ReleaseLock(ctx, input); err != nil {
-					l.logger.Printf("[warn][ddblock] release lock failed: %s", err)
+					l.logger.Printf("[warn][setddblock] release lock failed: %s", err)
 				}
 			} else {
-				l.logger.Printf("[warn][ddblock] lock result is nil last error: %s", l.lastError)
+				l.logger.Printf("[warn][setddblock] lock result is nil last error: %s", l.lastError)
 			}
 
-			l.logger.Println("[debug][ddblock] finish background hartbeet")
+			l.logger.Println("[debug][setddblock] finish background hartbeet")
 			l.wg.Done()
 		}()
 		nextHartbeatTime := lcokResult.NextHartbeatLimit.Add(-time.Duration(float64(lcokResult.LeaseDuration) * 0.2))
 		for {
 			sleepTime := time.Until(nextHartbeatTime)
-			l.logger.Printf("[debug][ddblock] wait for next hartbeet time until %s (%s)", nextHartbeatTime, sleepTime)
+			l.logger.Printf("[debug][setddblock] wait for next hartbeet time until %s (%s)", nextHartbeatTime, sleepTime)
 			select {
 			case <-ctx.Done():
 				return
@@ -167,24 +167,24 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 				return
 			case <-time.After(sleepTime):
 			}
-			l.logger.Println("[debug][ddblock] try send hartbeet")
+			l.logger.Println("[debug][setddblock] try send hartbeet")
 			input.PravRevision = &lcokResult.Revision
 			input.Revision, err = l.generateRevision()
 			if err != nil {
 				l.lastError = err
-				l.logger.Println("[error][ddblock] generate revision failed in hartbeat: %s", err)
+				l.logger.Println("[error][setddblock] generate revision failed in hartbeat: %s", err)
 				continue
 			}
 			lcokResult, err = l.svc.SendHartbeat(ctx, input)
 			if err != nil {
 				l.lastError = err
-				l.logger.Println("[error][ddblock] send hartbeat failed: %s", err)
+				l.logger.Println("[error][setddblock] send hartbeat failed: %s", err)
 				continue
 			}
 			nextHartbeatTime = lcokResult.NextHartbeatLimit.Add(-time.Duration(float64(lcokResult.LeaseDuration) * 0.2))
 		}
 	}()
-	l.logger.Println("[debug][ddblock] end LockWithErr")
+	l.logger.Println("[debug][setddblock] end LockWithErr")
 	return nil
 }
 
@@ -202,14 +202,14 @@ func (l *DynamoDBLocker) Lock() {
 func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.logger.Println("[debug][ddblock] start UnlockWithErr")
+	l.logger.Println("[debug][setddblock] start UnlockWithErr")
 	if !l.locked {
 		return errors.New("not lock granted")
 	}
 	close(l.unlockSignal)
 	l.locked = false
 	l.wg.Wait()
-	l.logger.Println("[debug][ddblock] end UnlockWithErr")
+	l.logger.Println("[debug][setddblock] end UnlockWithErr")
 	return nil
 }
 

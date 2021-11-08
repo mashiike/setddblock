@@ -11,14 +11,14 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/fujiwara/logutils"
-	"github.com/mashiike/ddblock"
+	"github.com/mashiike/setddblock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDDBLock(t *testing.T) {
 	endpoint := checkDDBLocalEndpoint(t)
 	defer func() {
-		err := ddblock.Recover(recover())
+		err := setddblock.Recover(recover())
 		require.NoError(t, err)
 	}()
 	var buf bytes.Buffer
@@ -42,7 +42,7 @@ func TestDDBLock(t *testing.T) {
 	countMax := 10
 	f1 := func(workerID int, l sync.Locker) {
 		defer func() {
-			err := ddblock.Recover(recover())
+			err := setddblock.Recover(recover())
 			require.NoError(t, err)
 		}()
 		l.Lock()
@@ -57,7 +57,7 @@ func TestDDBLock(t *testing.T) {
 	}
 	f2 := func(workerID int, l sync.Locker) {
 		defer func() {
-			err := ddblock.Recover(recover())
+			err := setddblock.Recover(recover())
 			require.NoError(t, err)
 		}()
 		l.Lock()
@@ -76,12 +76,12 @@ func TestDDBLock(t *testing.T) {
 		wgEnd.Add(2)
 		go func(workerID int) {
 			defer wgEnd.Done()
-			locker, err := ddblock.New(
+			locker, err := setddblock.New(
 				"ddb://test/item1",
-				ddblock.WithDelay(true),
-				ddblock.WithEndpoint(endpoint),
-				ddblock.WithLeaseDuration(500*time.Millisecond),
-				ddblock.WithLogger(logger),
+				setddblock.WithDelay(true),
+				setddblock.WithEndpoint(endpoint),
+				setddblock.WithLeaseDuration(500*time.Millisecond),
+				setddblock.WithLogger(logger),
 			)
 			require.NoError(t, err)
 			wgStart.Wait()
@@ -89,12 +89,12 @@ func TestDDBLock(t *testing.T) {
 		}(i + 1)
 		go func(workerID int) {
 			defer wgEnd.Done()
-			locker, err := ddblock.New(
+			locker, err := setddblock.New(
 				"ddb://test/item2",
-				ddblock.WithDelay(true),
-				ddblock.WithEndpoint(endpoint),
-				ddblock.WithLeaseDuration(100*time.Millisecond),
-				ddblock.WithLogger(logger),
+				setddblock.WithDelay(true),
+				setddblock.WithEndpoint(endpoint),
+				setddblock.WithLeaseDuration(100*time.Millisecond),
+				setddblock.WithLogger(logger),
 			)
 			require.NoError(t, err)
 			wgStart.Wait()

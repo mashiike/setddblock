@@ -1,4 +1,4 @@
-module github.com/mashiike/ddblock
+module github.com/mashiike/setddblock
 
 go 1.17
 

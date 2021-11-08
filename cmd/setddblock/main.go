@@ -10,7 +10,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/fujiwara/logutils"
-	"github.com/mashiike/ddblock"
+	"github.com/mashiike/setddblock"
 )
 
 func main() {
@@ -46,17 +46,17 @@ func main() {
 		filter.MinLevel = logutils.LogLevel("debug")
 	}
 	logger := log.New(filter, "", log.LstdFlags|log.Lmsgprefix)
-	optFns := []func(*ddblock.Options){
-		ddblock.WithDelay(n && !N),
-		ddblock.WithLogger(logger),
-		ddblock.WithRegion(region),
+	optFns := []func(*setddblock.Options){
+		setddblock.WithDelay(n && !N),
+		setddblock.WithLogger(logger),
+		setddblock.WithRegion(region),
 	}
 	if endpoint != "" {
-		optFns = append(optFns, ddblock.WithEndpoint(endpoint))
+		optFns = append(optFns, setddblock.WithEndpoint(endpoint))
 	}
-	locker, err := ddblock.New(args[0], optFns...)
+	locker, err := setddblock.New(args[0], optFns...)
 	if err != nil {
-		logger.Println("[error][ddblock]", err)
+		logger.Println("[error][setddblock]", err)
 		os.Exit(2)
 	}
 	ctx := context.Background()
@@ -64,7 +64,7 @@ func main() {
 		if x && !X {
 			return
 		}
-		logger.Println("[error][ddblock]", err)
+		logger.Println("[error][setddblock]", err)
 		os.Exit(3)
 	}
 	defer locker.Unlock()
@@ -76,7 +76,7 @@ func main() {
 
 	err = cmd.Run()
 	if err != nil {
-		logger.Printf("[error][ddblock] setddblock: fatal: unable to run %s\n", err)
+		logger.Printf("[error][setddblock] setddblock: fatal: unable to run %s\n", err)
 		os.Exit(5)
 	}
 }
