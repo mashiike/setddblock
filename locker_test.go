@@ -1,4 +1,4 @@
-package ddblock_test
+package setddblock_test
 
 import (
 	"bytes"
