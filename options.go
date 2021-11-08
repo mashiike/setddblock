@@ -22,6 +22,12 @@ func newOptions() *Options {
 	}
 }
 
+func WithNoPanic() func(opts *Options) {
+	return func(opts *Options) {
+		opts.NoPanic = true
+	}
+}
+
 func WithDelay(delay bool) func(opts *Options) {
 	return func(opts *Options) {
 		opts.Delay = delay

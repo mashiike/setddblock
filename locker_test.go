@@ -120,3 +120,21 @@ func checkDDBLocalEndpoint(t *testing.T) string {
 	t.SkipNow()
 	return ""
 }
+
+func TestNoPanic(t *testing.T) {
+	defer func() {
+		err := setddblock.Recover(recover())
+		require.NoError(t, err, "check no panic")
+	}()
+	locker, err := setddblock.New(
+		"ddb://test/item3",
+		setddblock.WithEndpoint("http://localhost:12345"), //invalid remote endpoint
+		setddblock.WithNoPanic(),
+	)
+	require.NoError(t, err)
+	locker.Lock()
+	require.Error(t, locker.LastError())
+	locker.ClearLastError()
+	locker.Unlock()
+	require.Error(t, locker.LastError())
+}

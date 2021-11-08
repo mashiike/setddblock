@@ -6,8 +6,8 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
-    main: ./cmd/shimesaba
-    binary: shimesaba
+    main: ./cmd/setddblock
+    binary: setddblock
     ldflags:
       - -s -w
       - -X main.Version=v{{.Version}}

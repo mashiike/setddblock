@@ -189,11 +189,6 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 }
 
 func (l *DynamoDBLocker) Lock() {
-	if l.noPanic {
-		defer func() {
-			Recover(recover())
-		}()
-	}
 	if err := l.LockWithErr(context.Background()); err != nil {
 		l.bailout(err)
 	}
@@ -214,18 +209,21 @@ func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 }
 
 func (l *DynamoDBLocker) Unlock() {
-	if l.noPanic {
-		defer func() {
-			Recover(recover())
-		}()
-	}
 	if err := l.UnlockWithErr(context.Background()); err != nil {
 		l.bailout(err)
 	}
 }
 
 func (l *DynamoDBLocker) LastError() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.lastError
+}
+
+func (l *DynamoDBLocker) ClearLastError() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.lastError = nil
 }
 
 type bailoutErr struct {
@@ -233,8 +231,12 @@ type bailoutErr struct {
 }
 
 func (l *DynamoDBLocker) bailout(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.lastError = err
-	panic(bailoutErr{err: err})
+	if !l.noPanic {
+		panic(bailoutErr{err: err})
+	}
 }
 
 func Recover(e interface{}) error {
