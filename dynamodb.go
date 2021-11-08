@@ -59,6 +59,20 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	}, nil
 }
 
+func (svc *dynamoDBService) WaitLockTableActive(ctx context.Context, tableName string) error {
+	retrier := retryPolicy.Start(ctx)
+	var err error
+	var exists bool
+	for retrier.Continue() {
+		exists, err = svc.LockTableExists(ctx, tableName)
+		if err == nil && exists {
+			return nil
+		}
+		svc.logger.Println("[debug][ddblock] retry lock table exists untile table active")
+	}
+	return fmt.Errorf("table not active: %w", err)
+}
+
 func (svc *dynamoDBService) LockTableExists(ctx context.Context, tableName string) (bool, error) {
 	table, err := svc.client.DescribeTable(ctx, &dynamodb.DescribeTableInput{
 		TableName: &tableName,
@@ -94,6 +108,9 @@ func (svc *dynamoDBService) CreateLockTable(ctx context.Context, tableName strin
 		BillingMode: types.BillingModePayPerRequest,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "ResourceInUseException") {
+			return nil
+		}
 		return err
 	}
 	svc.logger.Printf("[debug][ddblock] create table %s", *output.TableDescription.TableArn)
@@ -181,9 +198,6 @@ func (output *lockOutput) String() string {
 
 func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
 	svc.logger.Printf("[debug][ddblock] AquireLock %s", parms)
-	if parms.LeaseDuration > time.Minute {
-		return nil, errors.New("lease duration is so long, please set under 1m")
-	}
 	var ret *lockOutput
 	var err error
 	if parms.PravRevision == nil {
@@ -352,9 +366,6 @@ var retryPolicy = retry.Policy{
 
 func (svc *dynamoDBService) SendHartbeat(ctx context.Context, parms *lockInput) (*lockOutput, error) {
 	svc.logger.Printf("[debug][ddblock] sendHartbeat %s", parms)
-	if parms.LeaseDuration > time.Minute {
-		return nil, errors.New("lease duration is so long, please set under 1m")
-	}
 	if parms.PravRevision == nil {
 		return nil, errors.New("prav revision is must need")
 	}
