@@ -7,28 +7,44 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"github.com/fatih/color"
 	"github.com/fujiwara/logutils"
 	"github.com/mashiike/setddblock"
 )
 
+var (
+	Version = "current"
+)
+
 func main() {
 	var (
-		n, N, x, X, debug bool
-		endpoint, region  string
+		n, N, x, X, debug, versionFlag bool
+		endpoint, region               string
 	)
+	flag.CommandLine.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: setddblock [ -nNxX ] [-endpoint <endpoint>] [-debug -version] ddb://<table_name>/<item_id> your_command\n")
+		flag.CommandLine.PrintDefaults()
+	}
 	flag.BoolVar(&n, "n", false, "No delay. If fn is locked by another process, setlock gives up.")
 	flag.BoolVar(&N, "N", false, "(Default.) Delay. If fn is locked by another process, setlock waits until it can obtain a new lock.")
 	flag.BoolVar(&x, "x", false, "If fn cannot be update-item (or put-item) or locked, setlock exits zero.")
 	flag.BoolVar(&X, "X", false, "(Default.) If fn cannot be update-item (or put-item) or locked, setlock prints an error message and exits nonzero.")
 	flag.BoolVar(&debug, "debug", false, "show debug log")
+	flag.BoolVar(&versionFlag, "version", false, "show version")
 	flag.StringVar(&endpoint, "endpoint", "", "If you switch remote, set AWS DynamoDB endpoint url.")
 	flag.StringVar(&region, "region", "", "aws region")
 	flag.Parse()
 
+	if versionFlag {
+		fmt.Fprintf(flag.CommandLine.Output(), "setddblock version: %s\n", Version)
+		fmt.Fprintf(flag.CommandLine.Output(), "go runtime version: %s\n", runtime.Version())
+		os.Exit(0)
+	}
+
 	if flag.NArg() < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: setddblock [ -nNxX -endpoint <endpoint> -debug] ddb://<table_name>/<item_id> child\n")
+		flag.CommandLine.Usage()
 		os.Exit(1)
 	}
 	args := flag.Args()
