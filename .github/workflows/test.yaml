@@ -1,0 +1,33 @@
+name: Test
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        go:
+          - 1.17
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup DynamoDB Local
+        uses: rrainn/dynamodb-action@v2.0.0
+        with:
+          port: 8000
+          cors: '*'
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go }}
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: go test
+        env:
+          AWS_ACCESS_KEY_ID: dummy
+          AWS_SECRET_ACCESS_KEY: dummy
+          DYNAMODB_LOCAL_ENDPOINT: http://localhost:8000
+          AWS_DEFAULT_REGION: ap-northeast-1
+        run: |
+          go test -race ./...
