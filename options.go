@@ -32,7 +32,7 @@ func newOptions() *Options {
 }
 
 // WithNoPanic changes the behavior so that it does not panic if an error occurs in the Lock () and Unlock () functions.
-// Check the LastError () function to see if an error has occurred when WithNoPanic is specified.
+// Check the LastErr () function to see if an error has occurred when WithNoPanic is specified.
 func WithNoPanic() func(opts *Options) {
 	return func(opts *Options) {
 		opts.NoPanic = true
