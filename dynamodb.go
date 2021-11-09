@@ -152,13 +152,13 @@ func (parms *lockInput) String() string {
 }
 
 func (parms *lockInput) caluTime() (time.Time, time.Time) {
-	nextHartbeatLimit := time.Now().Add(parms.LeaseDuration)
-	ttl := nextHartbeatLimit.Add(parms.LeaseDuration / 2).Truncate(time.Second).Add(time.Second)
-	return nextHartbeatLimit, ttl
+	nextHeartbeatLimit := time.Now().Add(parms.LeaseDuration)
+	ttl := nextHeartbeatLimit.Add(parms.LeaseDuration / 2).Truncate(time.Second).Add(time.Second)
+	return nextHeartbeatLimit, ttl
 }
 
 func (parms *lockInput) Item() (map[string]types.AttributeValue, time.Time) {
-	nextHartbeatLimit, ttl := parms.caluTime()
+	nextHeartbeatLimit, ttl := parms.caluTime()
 	return map[string]types.AttributeValue{
 		"ID": &types.AttributeValueMemberS{
 			Value: parms.ItemID,
@@ -172,14 +172,14 @@ func (parms *lockInput) Item() (map[string]types.AttributeValue, time.Time) {
 		"ttl": &types.AttributeValueMemberN{
 			Value: strconv.FormatInt(ttl.Unix(), 10),
 		},
-	}, nextHartbeatLimit
+	}, nextHeartbeatLimit
 }
 
 type lockOutput struct {
-	LockGranted       bool
-	LeaseDuration     time.Duration
-	NextHartbeatLimit time.Time
-	Revision          string
+	LockGranted        bool
+	LeaseDuration      time.Duration
+	NextHeartbeatLimit time.Time
+	Revision           string
 }
 
 var (
@@ -192,7 +192,7 @@ func (output *lockOutput) String() string {
 		output.LockGranted,
 		output.LeaseDuration,
 		output.Revision,
-		output.NextHartbeatLimit,
+		output.NextHeartbeatLimit,
 	)
 }
 
@@ -223,7 +223,7 @@ func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*
 }
 
 func (svc *dynamoDBService) putItemForLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	item, nextHartbeatLimit := parms.Item()
+	item, nextHeartbeatLimit := parms.Item()
 	svc.logger.Printf("[debug][setddblock] try put item to ddb")
 	_, err := svc.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName:           &parms.TableName,
@@ -233,10 +233,10 @@ func (svc *dynamoDBService) putItemForLock(ctx context.Context, parms *lockInput
 	if err == nil {
 		svc.logger.Printf("[debug][setddblock] lock granted")
 		return &lockOutput{
-			LockGranted:       true,
-			LeaseDuration:     parms.LeaseDuration,
-			NextHartbeatLimit: nextHartbeatLimit.Truncate(time.Millisecond),
-			Revision:          parms.Revision,
+			LockGranted:        true,
+			LeaseDuration:      parms.LeaseDuration,
+			NextHeartbeatLimit: nextHeartbeatLimit.Truncate(time.Millisecond),
+			Revision:           parms.Revision,
 		}, nil
 	}
 	if strings.Contains(err.Error(), "ConditionalCheckFailedException") {
@@ -273,10 +273,10 @@ func (svc *dynamoDBService) getItemForLock(ctx context.Context, parms *lockInput
 	}
 
 	return &lockOutput{
-		LockGranted:       false,
-		LeaseDuration:     leaseDuration,
-		Revision:          revision,
-		NextHartbeatLimit: time.Now().Add(leaseDuration).Truncate(time.Millisecond),
+		LockGranted:        false,
+		LeaseDuration:      leaseDuration,
+		Revision:           revision,
+		NextHeartbeatLimit: time.Now().Add(leaseDuration).Truncate(time.Millisecond),
 	}, nil
 }
 
@@ -323,7 +323,7 @@ func (svc *dynamoDBService) updateItemForLock(ctx context.Context, parms *lockIn
 }
 
 func (svc *dynamoDBService) updateItem(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	item, nextHartbeatLimit := parms.Item()
+	item, nextHeartbeatLimit := parms.Item()
 	_, err := svc.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: &parms.TableName,
 		Key: map[string]types.AttributeValue{
@@ -349,10 +349,10 @@ func (svc *dynamoDBService) updateItem(ctx context.Context, parms *lockInput) (*
 	})
 	if err == nil {
 		return &lockOutput{
-			LockGranted:       true,
-			LeaseDuration:     parms.LeaseDuration,
-			NextHartbeatLimit: nextHartbeatLimit.Truncate(time.Millisecond),
-			Revision:          parms.Revision,
+			LockGranted:        true,
+			LeaseDuration:      parms.LeaseDuration,
+			NextHeartbeatLimit: nextHeartbeatLimit.Truncate(time.Millisecond),
+			Revision:           parms.Revision,
 		}, nil
 	}
 	return nil, err
@@ -364,8 +364,8 @@ var retryPolicy = retry.Policy{
 	MaxCount: 10,
 }
 
-func (svc *dynamoDBService) SendHartbeat(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.Printf("[debug][setddblock] sendHartbeat %s", parms)
+func (svc *dynamoDBService) SendHeartbeat(ctx context.Context, parms *lockInput) (*lockOutput, error) {
+	svc.logger.Printf("[debug][setddblock] sendHeartbeat %s", parms)
 	if parms.PrevRevision == nil {
 		return nil, errors.New("prev revision is must need")
 	}
