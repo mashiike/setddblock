@@ -20,6 +20,10 @@ var (
 )
 
 func main() {
+	os.Exit(_main())
+}
+
+func _main() int {
 	var (
 		n, N, x, X, debug, versionFlag bool
 		endpoint, region, timeout      string
@@ -42,12 +46,12 @@ func main() {
 	if versionFlag {
 		fmt.Fprintf(flag.CommandLine.Output(), "setddblock version: %s\n", Version)
 		fmt.Fprintf(flag.CommandLine.Output(), "go runtime version: %s\n", runtime.Version())
-		os.Exit(0)
+		return 0
 	}
 
 	if flag.NArg() < 2 {
 		flag.CommandLine.Usage()
-		os.Exit(1)
+		return 1
 	}
 	args := flag.Args()
 	filter := &logutils.LevelFilter{
@@ -75,14 +79,14 @@ func main() {
 	locker, err := setddblock.New(args[0], optFns...)
 	if err != nil {
 		logger.Println("[error][setddblock]", err)
-		os.Exit(2)
+		return 2
 	}
 	ctx := context.Background()
 	if timeout != "" {
 		t, err := time.ParseDuration(timeout)
 		if err != nil {
 			logger.Println("[error][setddblock] failed timeout parse: ", err)
-			os.Exit(7)
+			return 7
 		}
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, t)
@@ -91,14 +95,14 @@ func main() {
 	lockGranted, err := locker.LockWithErr(ctx)
 	if err != nil {
 		logger.Println("[error][setddblock]", err)
-		os.Exit(6)
+		return 6
 	}
 	if !lockGranted {
 		logger.Println("[warn][setddblock] lock was not granted")
 		if x && !X {
-			return
+			return 0
 		}
-		os.Exit(3)
+		return 3
 	}
 	defer locker.Unlock()
 
@@ -110,6 +114,7 @@ func main() {
 	err = cmd.Run()
 	if err != nil {
 		logger.Printf("[error][setddblock] setddblock: fatal: unable to run %s\n", err)
-		os.Exit(5)
+		return 5
 	}
+	return 0
 }

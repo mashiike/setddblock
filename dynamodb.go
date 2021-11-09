@@ -24,6 +24,9 @@ type dynamoDBService struct {
 func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	if opts.Region == "" {
 		opts.Region = os.Getenv("AWS_DEFAULT_REGION")
+		if opts.Region == "" {
+			opts.Region = os.Getenv("AWS_REGION")
+		}
 	}
 	awsOpts := []func(*awsConfig.LoadOptions) error{
 		awsConfig.WithRegion(opts.Region),
@@ -59,8 +62,14 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	}, nil
 }
 
+var checkTableRetryPolicy = retry.Policy{
+	MinDelay: 200 * time.Millisecond,
+	MaxDelay: 2 * time.Second,
+	MaxCount: 10,
+}
+
 func (svc *dynamoDBService) waitLockTableActive(ctx context.Context, tableName string) error {
-	retrier := retryPolicy.Start(ctx)
+	retrier := checkTableRetryPolicy.Start(ctx)
 	var err error
 	var exists bool
 	for retrier.Continue() {
@@ -69,6 +78,9 @@ func (svc *dynamoDBService) waitLockTableActive(ctx context.Context, tableName s
 			return nil
 		}
 		svc.logger.Println("[debug][setddblock] retry lock table exists untile table active")
+	}
+	if err == nil {
+		return fmt.Errorf("table not active")
 	}
 	return fmt.Errorf("table not active: %w", err)
 }
@@ -83,6 +95,7 @@ func (svc *dynamoDBService) LockTableExists(ctx context.Context, tableName strin
 		}
 		return false, err
 	}
+	svc.logger.Printf("[debug][setddblock] table status is %s", table.Table.TableStatus)
 	if table.Table.TableStatus == types.TableStatusActive || table.Table.TableStatus == types.TableStatusUpdating {
 		return true, nil
 	}
@@ -116,10 +129,10 @@ func (svc *dynamoDBService) CreateLockTable(ctx context.Context, tableName strin
 		}
 		return err
 	}
+	svc.logger.Printf("[debug][setddblock] success create table %s", *output.TableDescription.TableArn)
 	if err := svc.waitLockTableActive(ctx, tableName); err != nil {
 		return err
 	}
-	svc.logger.Printf("[debug][setddblock] create table %s", *output.TableDescription.TableArn)
 	svc.logger.Printf("[debug][setddblock] try update time to live `%s`", tableName)
 	_, err = svc.client.UpdateTimeToLive(ctx, &dynamodb.UpdateTimeToLiveInput{
 		TableName: &tableName,
@@ -318,6 +331,7 @@ func (svc *dynamoDBService) updateItemForLock(ctx context.Context, parms *lockIn
 	svc.logger.Printf("[debug][setddblock] try update item to ddb")
 	ret, err := svc.updateItem(ctx, parms)
 	if err == nil {
+		svc.logger.Printf("[debug][setddblock] success update item to ddb")
 		svc.logger.Printf("[debug][setddblock] lock granted")
 		return ret, nil
 	}
@@ -421,6 +435,7 @@ func (svc *dynamoDBService) deleteItemForUnlock(ctx context.Context, parms *lock
 		},
 	})
 	if err == nil {
+		svc.logger.Printf("[debug][setddblock] success delete item to ddb")
 		return nil
 	}
 	if strings.Contains(err.Error(), "ConditionalCheckFailedException") {
