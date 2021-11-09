@@ -59,7 +59,7 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	}, nil
 }
 
-func (svc *dynamoDBService) WaitLockTableActive(ctx context.Context, tableName string) error {
+func (svc *dynamoDBService) waitLockTableActive(ctx context.Context, tableName string) error {
 	retrier := retryPolicy.Start(ctx)
 	var err error
 	var exists bool
@@ -109,8 +109,14 @@ func (svc *dynamoDBService) CreateLockTable(ctx context.Context, tableName strin
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "ResourceInUseException") {
+			if err := svc.waitLockTableActive(ctx, tableName); err != nil {
+				return err
+			}
 			return nil
 		}
+		return err
+	}
+	if err := svc.waitLockTableActive(ctx, tableName); err != nil {
 		return err
 	}
 	svc.logger.Printf("[debug][setddblock] create table %s", *output.TableDescription.TableArn)
