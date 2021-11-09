@@ -24,6 +24,9 @@ type dynamoDBService struct {
 func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	if opts.Region == "" {
 		opts.Region = os.Getenv("AWS_DEFAULT_REGION")
+		if opts.Region == "" {
+			opts.Region = os.Getenv("AWS_REGION")
+		}
 	}
 	awsOpts := []func(*awsConfig.LoadOptions) error{
 		awsConfig.WithRegion(opts.Region),
@@ -59,8 +62,14 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	}, nil
 }
 
+var checkTableRetryPolicy = retry.Policy{
+	MinDelay: 100 * time.Millisecond,
+	MaxDelay: 1 * time.Second,
+	MaxCount: 10,
+}
+
 func (svc *dynamoDBService) waitLockTableActive(ctx context.Context, tableName string) error {
-	retrier := retryPolicy.Start(ctx)
+	retrier := checkTableRetryPolicy.Start(ctx)
 	var err error
 	var exists bool
 	for retrier.Continue() {
