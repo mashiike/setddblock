@@ -188,7 +188,7 @@ var (
 
 func (output *lockOutput) String() string {
 	return fmt.Sprintf(
-		"lock_granted=%v, lease_duration=%s, revision=%s, next_hartbeat_limit=%s",
+		"lock_granted=%v, lease_duration=%s, revision=%s, next_heartbeat_limit=%s",
 		output.LockGranted,
 		output.LeaseDuration,
 		output.Revision,
@@ -377,9 +377,9 @@ func (svc *dynamoDBService) SendHeartbeat(ctx context.Context, parms *lockInput)
 		if err == nil {
 			return ret, nil
 		}
-		svc.logger.Printf("[warn][setddblock] send hartbeat failed retrying %s, err=%s", parms, err)
+		svc.logger.Printf("[warn][setddblock] send heartbeat failed retrying %s, err=%s", parms, err)
 	}
-	return nil, fmt.Errorf("hartbeet failed: %w", err)
+	return nil, fmt.Errorf("heartbeet failed: %w", err)
 }
 
 func (svc *dynamoDBService) ReleaseLock(ctx context.Context, parms *lockInput) error {

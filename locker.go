@@ -156,13 +156,13 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 				l.logger.Printf("[warn][setddblock] lock result is nil last error: %s", l.lastError)
 			}
 
-			l.logger.Println("[debug][setddblock] finish background hartbeet")
+			l.logger.Println("[debug][setddblock] finish background heartbeet")
 			l.wg.Done()
 		}()
 		nextHeartbeatTime := lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 		for {
 			sleepTime := time.Until(nextHeartbeatTime)
-			l.logger.Printf("[debug][setddblock] wait for next hartbeet time until %s (%s)", nextHeartbeatTime, sleepTime)
+			l.logger.Printf("[debug][setddblock] wait for next heartbeet time until %s (%s)", nextHeartbeatTime, sleepTime)
 			select {
 			case <-ctx.Done():
 				return
@@ -170,18 +170,18 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 				return
 			case <-time.After(sleepTime):
 			}
-			l.logger.Println("[debug][setddblock] try send hartbeet")
+			l.logger.Println("[debug][setddblock] try send heartbeet")
 			input.PrevRevision = &lockResult.Revision
 			input.Revision, err = l.generateRevision()
 			if err != nil {
 				l.lastError = err
-				l.logger.Println("[error][setddblock] generate revision failed in hartbeat: %s", err)
+				l.logger.Println("[error][setddblock] generate revision failed in heartbeat: %s", err)
 				continue
 			}
 			lockResult, err = l.svc.SendHeartbeat(ctx, input)
 			if err != nil {
 				l.lastError = err
-				l.logger.Println("[error][setddblock] send hartbeat failed: %s", err)
+				l.logger.Println("[error][setddblock] send heartbeat failed: %s", err)
 				continue
 			}
 			nextHeartbeatTime = lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
