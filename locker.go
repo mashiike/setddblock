@@ -79,33 +79,34 @@ func (l *DynamoDBLocker) generateRevision() (string, error) {
 	return u.String(), nil
 }
 
-//LockWithErr try get lock.
-func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
+// LockWithErr try get lock.
+// The return value of bool indicates whether Lock has been released. If true, it is Lock Granted.
+func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.logger.Println("[debug][setddblock] start LockWithErr")
 	if l.locked {
-		return errors.New("aleady lock granted")
+		return true, errors.New("aleady lock granted")
 	}
 	exists, err := l.svc.LockTableExists(ctx, l.tableName)
 	if err != nil {
-		return err
+		return false, err
 	}
 	l.logger.Printf("[debug][setddblock] lock table exists = %v", exists)
 	if !exists {
 		if err := l.svc.CreateLockTable(ctx, l.tableName); err != nil {
-			return err
+			return false, err
 		}
 		if err := l.svc.WaitLockTableActive(ctx, l.tableName); err != nil {
-			return err
+			return false, err
 		}
 	}
 	rev, err := l.generateRevision()
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	l.logger.Println("[debug][setddblock] try aruire lock")
+	l.logger.Println("[debug][setddblock] try aquire lock")
 	input := &lockInput{
 		TableName:     l.tableName,
 		ItemID:        l.itemID,
@@ -114,29 +115,29 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	}
 	lockResult, err := l.svc.AquireLock(ctx, input)
 	if err != nil {
-		return err
+		return false, err
 	}
 	l.logger.Println("[debug][setddblock] aquire lock reqult", lockResult)
 	if !lockResult.LockGranted && !l.delay {
-		return errors.New("can not get lock")
+		return false, nil
 	}
 	for !lockResult.LockGranted {
 		sleepTime := time.Until(lockResult.NextHeartbeatLimit)
 		l.logger.Printf("[debug][setddblock] wait for next aquire lock until %s (%s)", lockResult.NextHeartbeatLimit, sleepTime)
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
 		case <-time.After(sleepTime):
 		}
 		input.PrevRevision = &lockResult.Revision
 		input.Revision, err = l.generateRevision()
 		if err != nil {
-			return err
+			return false, err
 		}
 		l.logger.Printf("[debug][setddblock] retry aquire lock until %s", input)
 		lockResult, err = l.svc.AquireLock(ctx, input)
 		if err != nil {
-			return err
+			return false, err
 		}
 		l.logger.Printf("[debug][setddblock] now revision %s", lockResult.Revision)
 	}
@@ -188,13 +189,17 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 		}
 	}()
 	l.logger.Println("[debug][setddblock] end LockWithErr")
-	return nil
+	return true, nil
 }
 
 //Lock for implements sync.Locker
 func (l *DynamoDBLocker) Lock() {
-	if err := l.LockWithErr(l.defaultCtx); err != nil {
+	lockGranted, err := l.LockWithErr(l.defaultCtx)
+	if err != nil {
 		l.bailout(err)
+	}
+	if !lockGranted {
+		l.bailout(errors.New("lock was not granted"))
 	}
 }
 

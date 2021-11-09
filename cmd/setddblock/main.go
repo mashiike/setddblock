@@ -76,11 +76,16 @@ func main() {
 		os.Exit(2)
 	}
 	ctx := context.Background()
-	if err := locker.LockWithErr(ctx); err != nil {
+	lockGranted, err := locker.LockWithErr(ctx)
+	if err != nil {
+		logger.Println("[error][setddblock]", err)
+		os.Exit(6)
+	}
+	if !lockGranted {
+		logger.Println("[warn][setddblock] lock was not granted")
 		if x && !X {
 			return
 		}
-		logger.Println("[error][setddblock]", err)
 		os.Exit(3)
 	}
 	defer locker.Unlock()
