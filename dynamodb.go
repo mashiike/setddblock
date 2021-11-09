@@ -133,14 +133,14 @@ type lockInput struct {
 	TableName     string
 	ItemID        string
 	Revision      string
-	PravRevision  *string
+	PrevRevision  *string
 	LeaseDuration time.Duration
 }
 
 func (parms *lockInput) String() string {
 	prevRevision := "<nil>"
-	if parms.PravRevision != nil {
-		prevRevision = *parms.PravRevision
+	if parms.PrevRevision != nil {
+		prevRevision = *parms.PrevRevision
 	}
 	return fmt.Sprintf(
 		"item_id=%s, lease_duration=%s, revision=%s, prav_revision=%s",
@@ -200,7 +200,7 @@ func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*
 	svc.logger.Printf("[debug][setddblock] AquireLock %s", parms)
 	var ret *lockOutput
 	var err error
-	if parms.PravRevision == nil {
+	if parms.PrevRevision == nil {
 		ret, err = svc.putItemForLock(ctx, parms)
 	} else {
 		ret, err = svc.updateItemForLock(ctx, parms)
@@ -343,7 +343,7 @@ func (svc *dynamoDBService) updateItem(ctx context.Context, parms *lockInput) (*
 			":Revision":      item["Revision"],
 			":ttl":           item["ttl"],
 			":PrevRevision": &types.AttributeValueMemberS{
-				Value: *parms.PravRevision,
+				Value: *parms.PrevRevision,
 			},
 		},
 	})
@@ -366,7 +366,7 @@ var retryPolicy = retry.Policy{
 
 func (svc *dynamoDBService) SendHartbeat(ctx context.Context, parms *lockInput) (*lockOutput, error) {
 	svc.logger.Printf("[debug][setddblock] sendHartbeat %s", parms)
-	if parms.PravRevision == nil {
+	if parms.PrevRevision == nil {
 		return nil, errors.New("prav revision is must need")
 	}
 	retrier := retryPolicy.Start(ctx)
@@ -383,7 +383,7 @@ func (svc *dynamoDBService) SendHartbeat(ctx context.Context, parms *lockInput) 
 }
 
 func (svc *dynamoDBService) ReleaseLock(ctx context.Context, parms *lockInput) error {
-	if parms.PravRevision == nil {
+	if parms.PrevRevision == nil {
 		return errors.New("prav revision is must need")
 	}
 	retrier := retryPolicy.Start(ctx)
@@ -410,7 +410,7 @@ func (svc *dynamoDBService) deleteItemForUnlock(ctx context.Context, parms *lock
 		ConditionExpression: aws.String("attribute_exists(ID) AND Revision=:PrevRevision"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":PrevRevision": &types.AttributeValueMemberS{
-				Value: *parms.PravRevision,
+				Value: *parms.PrevRevision,
 			},
 		},
 	})

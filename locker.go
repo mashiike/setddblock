@@ -128,7 +128,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 			return ctx.Err()
 		case <-time.After(sleepTime):
 		}
-		input.PravRevision = &lcokResult.Revision
+		input.PrevRevision = &lcokResult.Revision
 		input.Revision, err = l.generateRevision()
 		if err != nil {
 			return err
@@ -148,7 +148,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if lcokResult != nil {
-				input.PravRevision = &lcokResult.Revision
+				input.PrevRevision = &lcokResult.Revision
 				if err := l.svc.ReleaseLock(ctx, input); err != nil {
 					l.logger.Printf("[warn][setddblock] release lock failed: %s", err)
 				}
@@ -171,7 +171,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 			case <-time.After(sleepTime):
 			}
 			l.logger.Println("[debug][setddblock] try send hartbeet")
-			input.PravRevision = &lcokResult.Revision
+			input.PrevRevision = &lcokResult.Revision
 			input.Revision, err = l.generateRevision()
 			if err != nil {
 				l.lastError = err
