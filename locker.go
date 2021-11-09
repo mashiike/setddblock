@@ -225,13 +225,13 @@ func (l *DynamoDBLocker) Unlock() {
 	}
 }
 
-func (l *DynamoDBLocker) LastError() error {
+func (l *DynamoDBLocker) LastErr() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.lastError
 }
 
-func (l *DynamoDBLocker) ClearLastError() {
+func (l *DynamoDBLocker) ClearLastErr() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.lastError = nil

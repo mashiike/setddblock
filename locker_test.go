@@ -133,8 +133,8 @@ func TestNoPanic(t *testing.T) {
 	)
 	require.NoError(t, err)
 	locker.Lock()
-	require.Error(t, locker.LastError())
-	locker.ClearLastError()
+	require.Error(t, locker.LastErr())
+	locker.ClearLastErr()
 	locker.Unlock()
-	require.Error(t, locker.LastError())
+	require.Error(t, locker.LastErr())
 }
