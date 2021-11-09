@@ -143,7 +143,7 @@ func (parms *lockInput) String() string {
 		prevRevision = *parms.PrevRevision
 	}
 	return fmt.Sprintf(
-		"item_id=%s, lease_duration=%s, revision=%s, prav_revision=%s",
+		"item_id=%s, lease_duration=%s, revision=%s, prev_revision=%s",
 		parms.ItemID,
 		parms.LeaseDuration,
 		parms.Revision,
@@ -367,7 +367,7 @@ var retryPolicy = retry.Policy{
 func (svc *dynamoDBService) SendHartbeat(ctx context.Context, parms *lockInput) (*lockOutput, error) {
 	svc.logger.Printf("[debug][setddblock] sendHartbeat %s", parms)
 	if parms.PrevRevision == nil {
-		return nil, errors.New("prav revision is must need")
+		return nil, errors.New("prev revision is must need")
 	}
 	retrier := retryPolicy.Start(ctx)
 	var err error
@@ -384,7 +384,7 @@ func (svc *dynamoDBService) SendHartbeat(ctx context.Context, parms *lockInput) 
 
 func (svc *dynamoDBService) ReleaseLock(ctx context.Context, parms *lockInput) error {
 	if parms.PrevRevision == nil {
-		return errors.New("prav revision is must need")
+		return errors.New("prev revision is must need")
 	}
 	retrier := retryPolicy.Start(ctx)
 	var err error
