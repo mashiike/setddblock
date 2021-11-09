@@ -97,9 +97,6 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		if err := l.svc.CreateLockTable(ctx, l.tableName); err != nil {
 			return false, err
 		}
-		if err := l.svc.WaitLockTableActive(ctx, l.tableName); err != nil {
-			return false, err
-		}
 	}
 	rev, err := l.generateRevision()
 	if err != nil {
