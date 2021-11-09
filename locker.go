@@ -112,33 +112,33 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 		LeaseDuration: l.leaseDuration,
 		Revision:      rev,
 	}
-	lcokResult, err := l.svc.AquireLock(ctx, input)
+	lockResult, err := l.svc.AquireLock(ctx, input)
 	if err != nil {
 		return err
 	}
-	l.logger.Println("[debug][setddblock] aquire lock reqult", lcokResult)
-	if !lcokResult.LockGranted && !l.delay {
+	l.logger.Println("[debug][setddblock] aquire lock reqult", lockResult)
+	if !lockResult.LockGranted && !l.delay {
 		return errors.New("can not get lock")
 	}
-	for !lcokResult.LockGranted {
-		sleepTime := time.Until(lcokResult.NextHartbeatLimit)
-		l.logger.Printf("[debug][setddblock] wait for next aquire lock until %s (%s)", lcokResult.NextHartbeatLimit, sleepTime)
+	for !lockResult.LockGranted {
+		sleepTime := time.Until(lockResult.NextHartbeatLimit)
+		l.logger.Printf("[debug][setddblock] wait for next aquire lock until %s (%s)", lockResult.NextHartbeatLimit, sleepTime)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(sleepTime):
 		}
-		input.PrevRevision = &lcokResult.Revision
+		input.PrevRevision = &lockResult.Revision
 		input.Revision, err = l.generateRevision()
 		if err != nil {
 			return err
 		}
 		l.logger.Printf("[debug][setddblock] retry aquire lock until %s", input)
-		lcokResult, err = l.svc.AquireLock(ctx, input)
+		lockResult, err = l.svc.AquireLock(ctx, input)
 		if err != nil {
 			return err
 		}
-		l.logger.Printf("[debug][setddblock] now revision %s", lcokResult.Revision)
+		l.logger.Printf("[debug][setddblock] now revision %s", lockResult.Revision)
 	}
 	l.logger.Println("[debug][setddblock] success lock granted")
 	l.locked = true
@@ -147,8 +147,8 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 	l.wg.Add(1)
 	go func() {
 		defer func() {
-			if lcokResult != nil {
-				input.PrevRevision = &lcokResult.Revision
+			if lockResult != nil {
+				input.PrevRevision = &lockResult.Revision
 				if err := l.svc.ReleaseLock(ctx, input); err != nil {
 					l.logger.Printf("[warn][setddblock] release lock failed: %s", err)
 				}
@@ -159,7 +159,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 			l.logger.Println("[debug][setddblock] finish background hartbeet")
 			l.wg.Done()
 		}()
-		nextHartbeatTime := lcokResult.NextHartbeatLimit.Add(-time.Duration(float64(lcokResult.LeaseDuration) * 0.2))
+		nextHartbeatTime := lockResult.NextHartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 		for {
 			sleepTime := time.Until(nextHartbeatTime)
 			l.logger.Printf("[debug][setddblock] wait for next hartbeet time until %s (%s)", nextHartbeatTime, sleepTime)
@@ -171,20 +171,20 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) error {
 			case <-time.After(sleepTime):
 			}
 			l.logger.Println("[debug][setddblock] try send hartbeet")
-			input.PrevRevision = &lcokResult.Revision
+			input.PrevRevision = &lockResult.Revision
 			input.Revision, err = l.generateRevision()
 			if err != nil {
 				l.lastError = err
 				l.logger.Println("[error][setddblock] generate revision failed in hartbeat: %s", err)
 				continue
 			}
-			lcokResult, err = l.svc.SendHartbeat(ctx, input)
+			lockResult, err = l.svc.SendHartbeat(ctx, input)
 			if err != nil {
 				l.lastError = err
 				l.logger.Println("[error][setddblock] send hartbeat failed: %s", err)
 				continue
 			}
-			nextHartbeatTime = lcokResult.NextHartbeatLimit.Add(-time.Duration(float64(lcokResult.LeaseDuration) * 0.2))
+			nextHartbeatTime = lockResult.NextHartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 		}
 	}()
 	l.logger.Println("[debug][setddblock] end LockWithErr")

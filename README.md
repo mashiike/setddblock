@@ -77,12 +77,12 @@ if err != nil {
 }
 func () {
     l.Lock()
-    defer l.Unlcok()
+    defer l.Unlock()
     // ...
 }()
 ```
 
-Note: If Lock or Unlcok fails, for example because you can't connect to DynamoDB, it will panic.  
+Note: If Lock or Unlock fails, for example because you can't connect to DynamoDB, it will panic.  
       If you don't want it to panic, use `LockWithError()` and `UnlockWithErr()`. Alternatively, use the `WithNoPanic` option.
 
 more infomation see [go doc](https://godoc.org/github.com/mashiike/setddblock).
