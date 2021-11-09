@@ -25,6 +25,8 @@ Usage: setddblock [ -nNxX ] [-endpoint <endpoint>] [-debug -version] ddb://<tabl
   -n    No delay. If fn is locked by another process, setlock gives up.
   -region string
         aws region
+  -timeout string
+        set command timeout
   -version
         show version
   -x    If fn cannot be update-item (or put-item) or locked, setlock exits zero.
