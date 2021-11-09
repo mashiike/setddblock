@@ -150,7 +150,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		defer func() {
 			if lockResult != nil {
 				input.PrevRevision = &lockResult.Revision
-				if err := l.svc.ReleaseLock(ctx, input); err != nil {
+				if err := l.svc.ReleaseLock(context.Background(), input); err != nil {
 					l.logger.Printf("[warn][setddblock] release lock failed: %s", err)
 				}
 			} else {

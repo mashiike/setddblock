@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/fujiwara/logutils"
@@ -21,7 +22,7 @@ var (
 func main() {
 	var (
 		n, N, x, X, debug, versionFlag bool
-		endpoint, region               string
+		endpoint, region, timeout      string
 	)
 	flag.CommandLine.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: setddblock [ -nNxX ] [-endpoint <endpoint>] [-debug -version] ddb://<table_name>/<item_id> your_command\n")
@@ -35,6 +36,7 @@ func main() {
 	flag.BoolVar(&versionFlag, "version", false, "show version")
 	flag.StringVar(&endpoint, "endpoint", "", "If you switch remote, set AWS DynamoDB endpoint url.")
 	flag.StringVar(&region, "region", "", "aws region")
+	flag.StringVar(&timeout, "timeout", "", "set command timeout")
 	flag.Parse()
 
 	if versionFlag {
@@ -76,6 +78,16 @@ func main() {
 		os.Exit(2)
 	}
 	ctx := context.Background()
+	if timeout != "" {
+		t, err := time.ParseDuration(timeout)
+		if err != nil {
+			logger.Println("[error][setddblock] failed timeout parse: ", err)
+			os.Exit(7)
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, t)
+		defer cancel()
+	}
 	lockGranted, err := locker.LockWithErr(ctx)
 	if err != nil {
 		logger.Println("[error][setddblock]", err)
