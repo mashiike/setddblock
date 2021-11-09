@@ -102,7 +102,7 @@ func main() {
 	}
 	defer locker.Unlock()
 
-	cmd := exec.Command(args[1], args[2:]...)
+	cmd := exec.CommandContext(ctx, args[1], args[2:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
