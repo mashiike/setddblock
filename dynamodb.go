@@ -32,9 +32,9 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 		awsConfig.WithRegion(opts.Region),
 	}
 	if opts.Endpoint != "" {
-		awsOpts = append(awsOpts, awsConfig.WithEndpointResolver(
-			aws.EndpointResolverFunc(
-				func(service, region string) (aws.Endpoint, error) {
+		awsOpts = append(awsOpts, awsConfig.WithEndpointResolverWithOptions(
+			aws.EndpointResolverWithOptionsFunc(
+				func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 					if opts.Region != "" && opts.Region != region {
 						return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 					}
