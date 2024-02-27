@@ -48,12 +48,24 @@ func _main() int {
 		fmt.Fprintf(flag.CommandLine.Output(), "go runtime version: %s\n", runtime.Version())
 		return 0
 	}
-
-	if flag.NArg() < 2 {
+	offset := 0
+	if flag.NArg() < 1 {
 		flag.CommandLine.Usage()
+		fmt.Fprintf(os.Stderr, "\nsetddblock: missing ddb dsn\n")
+		return 1
+	}
+	if flag.Arg(1) == "--" {
+		offset = 1
+	}
+	if flag.NArg()-offset < 2 {
+		flag.CommandLine.Usage()
+		fmt.Fprintf(os.Stderr, "\nsetddblock: missing your command\n")
 		return 1
 	}
 	args := flag.Args()
+	if offset > 0 {
+		args = append(args[0:offset], args[offset+1:]...)
+	}
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"debug", "warn", "error"},
 		MinLevel: "warn",
