@@ -67,7 +67,10 @@ func _main() int {
 		}
 		args = append(args, arg)
 	}
-	flag.CommandLine.Parse(args[1:])
+	if err := flag.CommandLine.Parse(args[1:]); err != nil {
+		fmt.Fprintf(flag.CommandLine.Output(), "setddblock: %v\n", err)
+		return 1
+	}
 	if versionFlag {
 		fmt.Fprintf(flag.CommandLine.Output(), "setddblock version: %s\n", Version)
 		fmt.Fprintf(flag.CommandLine.Output(), "go runtime version: %s\n", runtime.Version())
