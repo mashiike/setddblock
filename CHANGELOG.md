@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.5.0](https://github.com/mashiike/setddblock/compare/v0.4.0...v0.5.0) - 2024-02-27
+- README.md is lye. short flags -nX can not use. fix this by @mashiike in https://github.com/mashiike/setddblock/pull/138
+- Bump gopkg.in/yaml.v3 from 3.0.0-20200313102051-9f266ea9e77c to 3.0.0 by @dependabot in https://github.com/mashiike/setddblock/pull/101
+- Bump github.com/fujiwara/logutils from 1.1.0 to 1.1.2 by @dependabot in https://github.com/mashiike/setddblock/pull/76
+- Bump golang.org/x/sys from 0.0.0-20210630005230-0f9fa26af87c to 0.1.0 by @dependabot in https://github.com/mashiike/setddblock/pull/74
+- Bump github.com/fatih/color from 1.13.0 to 1.16.0 by @dependabot in https://github.com/mashiike/setddblock/pull/120
+
 ## [v0.4.0](https://github.com/mashiike/setddblock/compare/v0.3.2...v0.4.0) - 2024-02-27
 - Bump github.com/aws/aws-sdk-go-v2 from 1.11.0 to 1.17.6 by @dependabot in https://github.com/mashiike/setddblock/pull/82
 - Bump github.com/aws/aws-sdk-go-v2/config from 1.10.0 to 1.18.39 by @dependabot in https://github.com/mashiike/setddblock/pull/103
