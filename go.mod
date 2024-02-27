@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.30.1
 	github.com/fatih/color v1.13.0
-	github.com/fujiwara/logutils v1.1.0
+	github.com/fujiwara/logutils v1.1.2
 	github.com/google/uuid v1.6.0
 	github.com/shogo82148/go-retry v1.2.0
 	github.com/stretchr/testify v1.7.0
