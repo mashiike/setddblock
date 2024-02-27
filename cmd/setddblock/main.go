@@ -74,7 +74,7 @@ func _main() int {
 	offset := 0
 	if flag.NArg() < 1 {
 		flag.CommandLine.Usage()
-		fmt.Fprintf(os.Stderr, "\nsetddblock: missing ddb dsn\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nsetddblock: missing ddb dsn\n")
 		return 1
 	}
 	if flag.Arg(1) == "--" {
@@ -82,7 +82,7 @@ func _main() int {
 	}
 	if flag.NArg()-offset < 2 {
 		flag.CommandLine.Usage()
-		fmt.Fprintf(os.Stderr, "\nsetddblock: missing your command\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nsetddblock: missing your command\n")
 		return 1
 	}
 	args = flag.Args()
