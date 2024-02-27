@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -29,8 +31,8 @@ func _main() int {
 		endpoint, region, timeout      string
 	)
 	flag.CommandLine.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: setddblock [ -nNxX ] [-endpoint <endpoint>] [-debug -version] ddb://<table_name>/<item_id> your_command\n")
-		flag.CommandLine.PrintDefaults()
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: setddblock [ -nNxX ] [--endpoint <endpoint>] [--debug --version] ddb://<table_name>/<item_id> your_command\n")
+		printDefaults(flag.CommandLine)
 	}
 	flag.BoolVar(&n, "n", false, "No delay. If fn is locked by another process, setlock gives up.")
 	flag.BoolVar(&N, "N", false, "(Default.) Delay. If fn is locked by another process, setlock waits until it can obtain a new lock.")
@@ -41,8 +43,34 @@ func _main() int {
 	flag.StringVar(&endpoint, "endpoint", "", "If you switch remote, set AWS DynamoDB endpoint url.")
 	flag.StringVar(&region, "region", "", "aws region")
 	flag.StringVar(&timeout, "timeout", "", "set command timeout")
-	flag.Parse()
 
+	args := make([]string, 1, len(os.Args))
+	args[0] = os.Args[0]
+	for _, arg := range os.Args[1:] {
+		// long flags
+		if strings.HasPrefix(arg, "--") && len(arg) > 2 {
+			if strings.Contains(arg, "=") {
+				parts := strings.SplitN(arg[2:], "=", 2)
+				args = append(args, "--"+parts[0])
+				args = append(args, parts[1])
+			} else {
+				args = append(args, arg)
+			}
+			continue
+		}
+		//short flags
+		if strings.HasPrefix(arg, "-") && len(arg) > 1 {
+			for i := 1; i < len(arg); i++ {
+				args = append(args, "-"+string(arg[i]))
+			}
+			continue
+		}
+		args = append(args, arg)
+	}
+	if err := flag.CommandLine.Parse(args[1:]); err != nil {
+		fmt.Fprintf(flag.CommandLine.Output(), "setddblock: %v\n", err)
+		return 1
+	}
 	if versionFlag {
 		fmt.Fprintf(flag.CommandLine.Output(), "setddblock version: %s\n", Version)
 		fmt.Fprintf(flag.CommandLine.Output(), "go runtime version: %s\n", runtime.Version())
@@ -51,7 +79,7 @@ func _main() int {
 	offset := 0
 	if flag.NArg() < 1 {
 		flag.CommandLine.Usage()
-		fmt.Fprintf(os.Stderr, "\nsetddblock: missing ddb dsn\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nsetddblock: missing ddb dsn\n")
 		return 1
 	}
 	if flag.Arg(1) == "--" {
@@ -59,10 +87,10 @@ func _main() int {
 	}
 	if flag.NArg()-offset < 2 {
 		flag.CommandLine.Usage()
-		fmt.Fprintf(os.Stderr, "\nsetddblock: missing your command\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nsetddblock: missing your command\n")
 		return 1
 	}
-	args := flag.Args()
+	args = flag.Args()
 	if offset > 0 {
 		args = append(args[0:offset], args[offset+1:]...)
 	}
@@ -80,8 +108,13 @@ func _main() int {
 		filter.MinLevel = logutils.LogLevel("debug")
 	}
 	logger := log.New(filter, "", log.LstdFlags|log.Lmsgprefix)
+	// -N and -n both specified, Delay is true by default
+	// -N and -n both not specified, Delay is true by default
+	// -N specified, -n not specified, Delay is true
+	// -N not specified, -n specified, Delay is false
+	delay := N || (!N && !n)
 	optFns := []func(*setddblock.Options){
-		setddblock.WithDelay(n && !N),
+		setddblock.WithDelay(delay),
 		setddblock.WithLogger(logger),
 		setddblock.WithRegion(region),
 	}
@@ -129,4 +162,51 @@ func _main() int {
 		return 5
 	}
 	return 0
+}
+
+func printDefaults(flagSet *flag.FlagSet) {
+	shortFlags := make([]*flag.Flag, 0, flagSet.NFlag())
+	longFlags := make([]*flag.Flag, 0, flagSet.NFlag())
+
+	flagSet.VisitAll(func(f *flag.Flag) {
+		if len(f.Name) > 1 {
+			longFlags = append(longFlags, f)
+		} else {
+			shortFlags = append(shortFlags, f)
+		}
+	})
+	fmt.Fprintln(flagSet.Output(), "Flags:")
+	sort.Slice(shortFlags, func(i, j int) bool {
+		if strings.EqualFold(shortFlags[i].Name, shortFlags[j].Name) {
+			return shortFlags[i].Name > shortFlags[j].Name
+		}
+		return strings.ToLower(shortFlags[i].Name) < strings.ToLower(shortFlags[j].Name)
+	})
+	sort.Slice(longFlags, func(i, j int) bool {
+		return strings.ToLower(longFlags[i].Name) < strings.ToLower(longFlags[j].Name)
+	})
+	flags := append(shortFlags, longFlags...)
+	for _, f := range flags {
+		var builder strings.Builder
+		if len(f.Name) > 1 {
+			//long flag
+			fmt.Fprintf(&builder, "  --%s", f.Name)
+		} else {
+			//short flag
+			fmt.Fprintf(&builder, "  -%s", f.Name)
+		}
+		name, usage := flag.UnquoteUsage(f)
+		if len(name) > 0 {
+			builder.WriteString(" ")
+			builder.WriteString(name)
+		}
+		builder.WriteString("\t")
+		if builder.Len() <= 4 { // space, space, '-', 'x'.
+			builder.WriteString("\t")
+		} else {
+			builder.WriteString("\n    \t")
+		}
+		builder.WriteString(strings.ReplaceAll(usage, "\n", "\n    \t"))
+		fmt.Fprint(flagSet.Output(), builder.String(), "\n")
+	}
 }
