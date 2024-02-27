@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -41,8 +42,30 @@ func _main() int {
 	flag.StringVar(&endpoint, "endpoint", "", "If you switch remote, set AWS DynamoDB endpoint url.")
 	flag.StringVar(&region, "region", "", "aws region")
 	flag.StringVar(&timeout, "timeout", "", "set command timeout")
-	flag.Parse()
-
+	args := make([]string, 1, len(os.Args))
+	args[0] = os.Args[0]
+	for _, arg := range os.Args[1:] {
+		// long flags
+		if strings.HasPrefix(arg, "--") && len(arg) > 2 {
+			if strings.Contains(arg, "=") {
+				parts := strings.SplitN(arg[2:], "=", 2)
+				args = append(args, "--"+parts[0])
+				args = append(args, parts[1])
+			} else {
+				args = append(args, arg)
+			}
+			continue
+		}
+		//short flags
+		if strings.HasPrefix(arg, "-") && len(arg) > 1 {
+			for i := 1; i < len(arg); i++ {
+				args = append(args, "-"+string(arg[i]))
+			}
+			continue
+		}
+		args = append(args, arg)
+	}
+	flag.CommandLine.Parse(args[1:])
 	if versionFlag {
 		fmt.Fprintf(flag.CommandLine.Output(), "setddblock version: %s\n", Version)
 		fmt.Fprintf(flag.CommandLine.Output(), "go runtime version: %s\n", runtime.Version())
@@ -62,7 +85,7 @@ func _main() int {
 		fmt.Fprintf(os.Stderr, "\nsetddblock: missing your command\n")
 		return 1
 	}
-	args := flag.Args()
+	args = flag.Args()
 	if offset > 0 {
 		args = append(args[0:offset], args[offset+1:]...)
 	}
@@ -80,8 +103,13 @@ func _main() int {
 		filter.MinLevel = logutils.LogLevel("debug")
 	}
 	logger := log.New(filter, "", log.LstdFlags|log.Lmsgprefix)
+	// -N and -n both specified, Delay is true by default
+	// -N and -n both not specified, Delay is true by default
+	// -N specified, -n not specified, Delay is true
+	// -N not specified, -n specified, Delay is false
+	delay := N || (!N && !n)
 	optFns := []func(*setddblock.Options){
-		setddblock.WithDelay(n && !N),
+		setddblock.WithDelay(delay),
 		setddblock.WithLogger(logger),
 		setddblock.WithRegion(region),
 	}
