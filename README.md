@@ -15,21 +15,26 @@ $ setddblock -xN ddb://ddb_lock_table/lock_item_id your_command
 ```
 
 ```console
-Usage: setddblock [ -nNxX ] [-endpoint <endpoint>] [-debug -version] ddb://<table_name>/<item_id> your_command
-  -N    (Default.) Delay. If fn is locked by another process, setlock waits until it can obtain a new lock.
-  -X    (Default.) If fn cannot be update-item (or put-item) or locked, setlock prints an error message and exits nonzero.
-  -debug
+Usage: setddblock [ -nNxX ] [--endpoint <endpoint>] [--debug --version] ddb://<table_name>/<item_id> your_command
+Flags:
+  -n
+        No delay. If fn is locked by another process, setlock gives up.
+  -N
+        (Default.) Delay. If fn is locked by another process, setlock waits until it can obtain a new lock.
+  -x
+        If fn cannot be update-item (or put-item) or locked, setlock exits zero.
+  -X
+        (Default.) If fn cannot be update-item (or put-item) or locked, setlock prints an error message and exits nonzero.
+  --debug
         show debug log
-  -endpoint string
+  --endpoint string
         If you switch remote, set AWS DynamoDB endpoint url.
-  -n    No delay. If fn is locked by another process, setlock gives up.
-  -region string
+  --region string
         aws region
-  -timeout string
+  --timeout string
         set command timeout
-  -version
+  --version
         show version
-  -x    If fn cannot be update-item (or put-item) or locked, setlock exits zero.
 ```
 
 the required IAM Policy is as follows:
