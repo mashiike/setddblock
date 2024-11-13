@@ -218,8 +218,8 @@ func (output *lockOutput) String() string {
 	)
 }
 
-func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.Printf("[debug][setddblock] AquireLock for table_name=%s, item_id=%s, lease_duration=%s, revision=%s, prev_revision=%v at %s", parms.TableName, parms.ItemID, parms.LeaseDuration, parms.Revision, parms.PrevRevision, time.Now().Format(time.RFC3339))
+func (svc *dynamoDBService) AcquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
+	svc.logger.Printf("[debug][setddblock] AcquireLock for table_name=%s, item_id=%s, lease_duration=%s, revision=%s, prev_revision=%v at %s", parms.TableName, parms.ItemID, parms.LeaseDuration, parms.Revision, parms.PrevRevision, time.Now().Format(time.RFC3339))
 	var ret *lockOutput
 	var err error
 	if parms.PrevRevision == nil {
@@ -238,8 +238,7 @@ func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*
 	for retrier.Continue() {
 		ret, err = svc.putItemForLock(ctx, parms)
 		if err != errMaybeRaceDeleted {
-			if err == nil {
-			} else {
+			if err != nil {
 				svc.logger.Printf("[error][setddblock] failed to acquire lock after retry: %s", err)
 			}
 			return ret, err

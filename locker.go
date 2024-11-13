@@ -113,14 +113,14 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	l.logger.Println("[debug][setddblock] try - aquire lock")
+	l.logger.Println("[debug][setddblock] try - acquire lock")
 	input := &lockInput{
 		TableName:     l.tableName,
 		ItemID:        l.itemID,
 		LeaseDuration: l.leaseDuration,
 		Revision:      rev,
 	}
-	lockResult, err := l.svc.AquireLock(ctx, input)
+	lockResult, err := l.svc.AcquireLock(ctx, input)
 	if err != nil {
 		return false, err
 	}
@@ -130,7 +130,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	if lockResult == nil {
-		l.logger.Printf("[debug][setddblock] aquire lock result is nil for table_name=%s, item_id=%s", l.tableName, l.itemID)
+		l.logger.Printf("[debug][setddblock] acquire lock result is nil for table_name=%s, item_id=%s", l.tableName, l.itemID)
 		return false, nil
 	}
 	if !lockResult.LockGranted && !l.delay {
@@ -138,7 +138,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	}
 	for !lockResult.LockGranted {
 		sleepTime := time.Until(lockResult.NextHeartbeatLimit)
-		l.logger.Printf("[debug][setddblock] wait for next aquire lock until %s (%s)", lockResult.NextHeartbeatLimit, sleepTime)
+		l.logger.Printf("[debug][setddblock] wait for next acquire lock until %s (%s)", lockResult.NextHeartbeatLimit, sleepTime)
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
@@ -149,7 +149,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		lockResult, err = l.svc.AquireLock(ctx, input)
+		lockResult, err = l.svc.AcquireLock(ctx, input)
 		if err != nil {
 			return false, err
 		}
@@ -218,7 +218,7 @@ func (l *DynamoDBLocker) Lock() {
 }
 
 //UnlockWithErr unlocks. Delete DynamoDB items
-func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
+func (l *DynamoDBLocker) UnlockWithErr(_ context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.logger.Println("[debug][setddblock] start - UnlockWithErr")
@@ -231,6 +231,7 @@ func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 	l.logger.Println("[debug][setddblock] end - UnlockWithErr")
 	return nil
 }
+
 
 //Unlock for implements sync.Locker
 func (l *DynamoDBLocker) Unlock() {

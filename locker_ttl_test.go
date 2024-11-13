@@ -69,8 +69,8 @@ func getItemDetails(client *dynamodb.Client, tableName, itemID string) (int64, s
 
 
 func setupDynamoDBClient(t *testing.T) *dynamodb.Client {
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithEndpointResolver(
-		aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithEndpointResolverWithOptions(
+		aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 			if service == dynamodb.ServiceID {
 				return aws.Endpoint{URL: dynamoDBURL}, nil
 			}
@@ -80,6 +80,7 @@ func setupDynamoDBClient(t *testing.T) *dynamodb.Client {
 	require.NoError(t, err, "Failed to load AWS SDK config")
 	return dynamodb.NewFromConfig(cfg)
 }
+
 
 
 // toggle --debug style logging for setddblock
@@ -171,7 +172,8 @@ func acquireInitialLock(logger *log.Logger) {
 		os.Exit(1)
 	}
 	locker.Lock()
-	fmt.Println(fmt.Sprintf("[%s] Initial lock acquired; simulating lock hold indefinitely.", time.Now().Format(time.RFC3339)))
+	fmt.Printf("[%s] Initial lock acquired; simulating lock hold indefinitely.\n", time.Now().Format(time.RFC3339))
+
 
 
 	select {} // Keep the process alive to simulate a lock hold
