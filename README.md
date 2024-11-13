@@ -2,13 +2,13 @@
 
 ![Latest GitHub release](https://img.shields.io/github/release/mashiike/setddblock.svg)
 ![Github Actions test](https://github.com/mashiike/setddblock/workflows/Test/badge.svg?branch=main)
-[![Go Report Card](https://goreportcard.com/badge/mashiike/setddblock)](https://goreportcard.com/report/mashiike/setddblock) 
+[![Go Report Card](https://goreportcard.com/badge/mashiike/setddblock)](https://goreportcard.com/report/mashiike/setddblock)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/mashiike/setddblock/blob/master/LICENSE)
 [![Documentation](https://godoc.org/github.com/mashiike/setddblock?status.svg)](https://godoc.org/github.com/mashiike/setddblock)
 
 setddblock is setlock like command line tool with [AWS DynamoDB](https://aws.amazon.com/dynamodb/)
 
-## Usage 
+## Usage
 
 ```console
 $ setddblock -xN ddb://ddb_lock_table/lock_item_id your_command
@@ -32,13 +32,13 @@ Flags:
   --region string
         aws region
   --timeout string
-        set command timeout
+        set command timeout (e.g., 30s, 1m, 2h)
   --version
         show version
 ```
 
 the required IAM Policy is as follows:
-```json 
+```json
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -60,7 +60,7 @@ the required IAM Policy is as follows:
 ```
 
 If the lock table has already been created, `dynamodb:CreateTable` and `dynamodb:UpdateTimeToLive` are not required.
-## Install 
+## Install
 
 ### binary packages
 
@@ -80,7 +80,7 @@ $ brew install mashiike/tap/setddblock
 ```go
 l, err := setddblock.New("ddb://ddb_lock_table/lock_item_id")
 if err != nil {
-	// ...
+  // ...
 }
 func () {
     l.Lock()
@@ -89,10 +89,24 @@ func () {
 }()
 ```
 
-Note: If Lock or Unlock fails, for example because you can't connect to DynamoDB, it will panic.  
+Note: If Lock or Unlock fails, for example because you can't connect to DynamoDB, it will panic.
       If you don't want it to panic, use `LockWithError()` and `UnlockWithErr()`. Alternatively, use the `WithNoPanic` option.
 
-more infomation see [go doc](https://godoc.org/github.com/mashiike/setddblock).
+## TTL Expiration
+
+The `setddblock` tool now supports TTL (Time-To-Live) expiration for locks. This feature ensures that locks are automatically released after a specified duration, preventing stale locks from persisting indefinitely. If `setddblock` isn't run before the TTL expires, DynamoDB will eventually purge the stale item.
+
+### How TTL Works
+
+- When a lock is acquired, a TTL is set on the lock item in DynamoDB.
+- If a locked process dies and heartbeats stop updating the TTL, the lock will automatically expire and be released after the TTL duration, allowing other processes to acquire the lock.
+
+### TTL Configuration
+
+- The TTL is automatically calculated based on the lease duration set with the `WithLeaseDuration` option.
+- The TTL attribute is automatically set when the lock table is created and is updated by the heartbeat of a running locked process.
+
+For more information, see [go doc](https://godoc.org/github.com/mashiike/setddblock).
 ## License
 
 see [LICENSE](https://github.com/mashiike/setddblock/blob/master/LICENSE) file.

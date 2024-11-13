@@ -42,7 +42,7 @@ func _main() int {
 	flag.BoolVar(&versionFlag, "version", false, "show version")
 	flag.StringVar(&endpoint, "endpoint", "", "If you switch remote, set AWS DynamoDB endpoint url.")
 	flag.StringVar(&region, "region", "", "aws region")
-	flag.StringVar(&timeout, "timeout", "", "set command timeout")
+	flag.StringVar(&timeout, "timeout", "", "set command timeout (e.g., 30s, 1m, 2h)")
 
 	args := make([]string, 1, len(os.Args))
 	args[0] = os.Args[0]
@@ -143,7 +143,7 @@ func _main() int {
 		return 6
 	}
 	if !lockGranted {
-		logger.Println("[warn][setddblock] lock was not granted")
+		logger.Printf("[warn][setddblock] lock was not granted for item_id=%s in table_name=%s at %s", locker.ItemID(), locker.TableName(), time.Now().Format(time.RFC3339))
 		if x && !X {
 			return 0
 		}

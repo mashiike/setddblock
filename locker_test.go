@@ -47,13 +47,13 @@ func TestDDBLock(t *testing.T) {
 		}()
 		l.Lock()
 		defer l.Unlock()
-		t.Logf("f1 wroker_id = %d start", workerID)
+		t.Logf("Function f1: Worker ID = %d has started processing", workerID)
 		for i := 0; i < countMax; i++ {
 			total1 += 1
 			time.Sleep(10 * time.Millisecond)
 		}
 		lastTime1 = time.Now()
-		t.Logf("f1 wroker_id = %d finish", workerID)
+		t.Logf("Function f1: Worker ID = %d has finished processing", workerID)
 	}
 	f2 := func(workerID int, l sync.Locker) {
 		defer func() {
@@ -62,7 +62,7 @@ func TestDDBLock(t *testing.T) {
 		}()
 		l.Lock()
 		defer l.Unlock()
-		t.Logf("f2 wroker_id = %d start", workerID)
+		t.Logf("Function f2: Worker ID = %d has started processing", workerID)
 
 		for i := 0; i < countMax; i++ {
 			total2 += 1
@@ -70,7 +70,7 @@ func TestDDBLock(t *testing.T) {
 		}
 		lastTime2 = time.Now()
 
-		t.Logf("f2 wroker_id = %d finish", workerID)
+		t.Logf("Function f2: Worker ID = %d has finished processing", workerID)
 	}
 	for i := 0; i < workerNum; i++ {
 		wgEnd.Add(2)
@@ -106,8 +106,8 @@ func TestDDBLock(t *testing.T) {
 	t.Log(buf.String())
 	require.EqualValues(t, workerNum*countMax, total1)
 	require.EqualValues(t, workerNum*countMax, total2)
-	t.Logf("f1 last = %s", lastTime1)
-	t.Logf("f2 last = %s", lastTime2)
+	t.Logf("Function f1: Last execution time = %s", lastTime1)
+	t.Logf("Function f2: Last execution time = %s", lastTime2)
 	require.True(t, lastTime1.After(lastTime2))
 	require.False(t, strings.Contains(buf.String(), "[error]"))
 }
