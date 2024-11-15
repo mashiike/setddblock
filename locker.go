@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-//DynamoDB Locker implements the sync.Locker interface and provides a Lock mechanism using DynamoDB.
+// DynamoDBLocker implements the sync.Locker interface and provides a Lock mechanism using DynamoDB.
 type DynamoDBLocker struct {
 	mu            sync.Mutex
 	lastError     error
@@ -43,7 +43,7 @@ func (l *DynamoDBLocker) TableName() string {
 	return l.tableName
 }
 
-//New returns *DynamoDBLocker
+// New returns *DynamoDBLocker
 func New(urlStr string, optFns ...func(*Options)) (*DynamoDBLocker, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
@@ -211,7 +211,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-//Lock for implements sync.Locker
+// Lock for implements sync.Locker
 func (l *DynamoDBLocker) Lock() {
 	lockGranted, err := l.LockWithErr(l.defaultCtx)
 	if err != nil {
@@ -222,7 +222,7 @@ func (l *DynamoDBLocker) Lock() {
 	}
 }
 
-//UnlockWithErr unlocks. Delete DynamoDB items
+// UnlockWithErr unlocks. Delete DynamoDB items
 func (l *DynamoDBLocker) UnlockWithErr(_ context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -237,8 +237,7 @@ func (l *DynamoDBLocker) UnlockWithErr(_ context.Context) error {
 	return nil
 }
 
-
-//Unlock for implements sync.Locker
+// Unlock for implements sync.Locker
 func (l *DynamoDBLocker) Unlock() {
 	if err := l.UnlockWithErr(l.defaultCtx); err != nil {
 		l.bailout(err)
@@ -270,7 +269,7 @@ func (l *DynamoDBLocker) bailout(err error) {
 	}
 }
 
-//Recover for Lock() and Unlock() panic
+// Recover for Lock() and Unlock() panic
 func Recover(e interface{}) error {
 	if e != nil {
 		b, ok := e.(bailoutErr)
