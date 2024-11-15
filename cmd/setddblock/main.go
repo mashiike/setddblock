@@ -180,7 +180,7 @@ func _main() int {
 		if ctx.Err() == context.DeadlineExceeded {
 			logger.Printf("[error][setddblock] timeout of %s exceeded", timeout)
 		}
-  	logger.Printf("[error][setddblock] setddblock: fatal: unable to run, %s, %s\n", err, ctx.Err())
+		logger.Printf("[error][setddblock] setddblock: fatal: unable to run, %s, %s\n", err, ctx.Err())
 		return 5
 	}
 	return 0
