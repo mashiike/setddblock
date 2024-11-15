@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.6.2](https://github.com/BrassTack/setddblock/compare/v0.6.1...v0.6.2) - 2024-11-15
+- logging update, linter update by @keen99 in https://github.com/BrassTack/setddblock/pull/6
+
 ## [v0.6.1](https://github.com/BrassTack/setddblock/compare/v0.6.0...v0.6.1) - 2024-11-15
 - Enhance CLI tool logging by @keen99 in https://github.com/BrassTack/setddblock/pull/4
 
