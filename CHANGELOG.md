@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.6.1](https://github.com/BrassTack/setddblock/compare/v0.6.0...v0.6.1) - 2024-11-15
+- Enhance CLI tool logging by @keen99 in https://github.com/BrassTack/setddblock/pull/4
+
 ## [v0.5.1](https://github.com/BrassTack/setddblock/compare/v0.5.0...v0.5.1) - 2024-11-13
 - Update README.md - add DeleteItem by @keen99 in https://github.com/BrassTack/setddblock/pull/1
 - Enhanced Lock Request Handling with TTL Consideration by @keen99 in https://github.com/BrassTack/setddblock/pull/2
