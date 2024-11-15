@@ -28,6 +28,11 @@ type DynamoDBLocker struct {
 	defaultCtx    context.Context
 }
 
+// GetLockDetails retrieves the lock details for the current item.
+func (l *DynamoDBLocker) GetLockDetails(ctx context.Context) (*LockDetails, error) {
+	return l.svc.GetLockDetails(ctx, l.tableName, l.itemID)
+}
+
 // ItemID returns the item ID of the lock.
 func (l *DynamoDBLocker) ItemID() string {
 	return l.itemID
