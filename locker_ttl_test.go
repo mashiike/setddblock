@@ -84,8 +84,8 @@ func setupDynamoDBClient(t *testing.T) *dynamodb.Client {
 
 
 // toggle --debug style logging for setddblock
-// var enableLogging = false
-var enableLogging = true
+// var enableDebug = false
+var enableDebug = true
 
 
 
@@ -96,7 +96,7 @@ func tryAcquireLock(t *testing.T, logger *log.Logger, retryCount int) (bool, tim
         setddblock.WithDelay(false),
         setddblock.WithNoPanic(),
     }
-    if enableLogging {
+    if enableDebug {
         options = append(options, setddblock.WithLogger(logger))
     }
     locker, err := setddblock.New(
@@ -138,7 +138,7 @@ func setupLogger() *log.Logger {
 		MinLevel: "warn",
 		Writer:   os.Stdout,
 	}
-	if enableLogging {
+	if enableDebug {
 		filter.MinLevel = "debug"
 	}
 	logger.SetOutput(filter)
@@ -153,7 +153,7 @@ func acquireInitialLock(logger *log.Logger) {
 		setddblock.WithDelay(false),
 		setddblock.WithNoPanic(),
 	)
-	if enableLogging {
+	if enableDebug {
 		locker, err = setddblock.New(
 			fmt.Sprintf("ddb://%s/%s", lockTableName, lockItemID),
 			setddblock.WithEndpoint(dynamoDBURL),

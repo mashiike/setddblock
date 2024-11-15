@@ -21,6 +21,45 @@ type dynamoDBService struct {
 	logger Logger
 }
 
+type LockDetails struct {
+	TTL            int64
+	ExpirationTime time.Time
+	Revision       string
+}
+
+func (svc *dynamoDBService) GetLockDetails(ctx context.Context, tableName, itemID string) (*LockDetails, error) {
+	output, err := svc.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: &tableName,
+		Key: map[string]types.AttributeValue{
+			"ID": &types.AttributeValueMemberS{
+				Value: itemID,
+			},
+		},
+		ConsistentRead: aws.Bool(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ttl, ok := readAttributeValueMemberN(output.Item, "ttl")
+	if !ok {
+		return nil, errors.New("failed to read TTL")
+	}
+
+	revision, ok := readAttributeValueMemberS(output.Item, "Revision")
+	if !ok {
+		return nil, errors.New("failed to read Revision")
+	}
+
+	expirationTime := time.Unix(ttl, 0)
+
+	return &LockDetails{
+		TTL:            ttl,
+		ExpirationTime: expirationTime,
+		Revision:       revision,
+	}, nil
+}
+
 func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	if opts.Region == "" {
 		opts.Region = os.Getenv("AWS_DEFAULT_REGION")

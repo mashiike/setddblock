@@ -143,13 +143,31 @@ func _main() int {
 		return 6
 	}
 	if !lockGranted {
-		logger.Printf("[warn][setddblock] lock was not granted for item_id=%s in table_name=%s at %s", locker.ItemID(), locker.TableName(), time.Now().Format(time.RFC3339))
+		lockDetails, err := locker.GetLockDetails(ctx)
+		if err != nil {
+			logger.Println("[error][setddblock] failed to retrieve lock details:", err)
+			return 4
+		}
+		logger.Printf("[warn][setddblock] lock was not granted for item_id=%s. TTL: %d, Expires: %s, Revision: %s",
+			locker.ItemID(),
+			lockDetails.TTL,
+			lockDetails.ExpirationTime.Format(time.RFC3339),
+			lockDetails.Revision,
+		)
 		if x && !X {
 			return 0
 		}
 		return 3
 	}
-	defer locker.Unlock()
+	logger.Printf("[info][setddblock] lock granted for item_id=%s",
+		locker.ItemID(),
+	)
+	defer func() {
+		logger.Printf("[info][setddblock] releasing lock for item_id=%s",
+			locker.ItemID(),
+		)
+		locker.Unlock()
+	}()
 
 	cmd := exec.CommandContext(ctx, args[1], args[2:]...)
 	cmd.Stdin = os.Stdin
