@@ -136,6 +136,7 @@ func _main() int {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, t)
 		defer cancel()
+		logger.Printf("[debug][setddblock] command timeout set to %s", t)
 	}
 	lockGranted, err := locker.LockWithErr(ctx)
 	if err != nil {
@@ -176,7 +177,10 @@ func _main() int {
 
 	err = cmd.Run()
 	if err != nil {
-		logger.Printf("[error][setddblock] setddblock: fatal: unable to run %s\n", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			logger.Printf("[error][setddblock] timeout of %s exceeded", timeout)
+		}
+  	logger.Printf("[error][setddblock] setddblock: fatal: unable to run, %s, %s\n", err, ctx.Err())
 		return 5
 	}
 	return 0

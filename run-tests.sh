@@ -54,9 +54,8 @@ else
   go test -v -race -timeout 30s "$TEST_FILE" || test_status=$?
 fi
 
-# # Default exit status to 0 if tests passed
+# Default exit status to 0 if tests passed
 test_status="${test_status:-0}"
-
 
 echo "Running golangci-lint..."
 golangci-lint run --out-format line-number --config=.golangci.yaml || lint_status=$?
@@ -66,11 +65,16 @@ lint_status="${lint_status:-0}"
 
 ## simplified cli based test set so we can see and validate the cli log output changes
 # Build the setddblock CLI tool
+# Build the setddblock CLI tool
 echo "Building setddblock CLI tool..."
 go build -o setddblock ./cmd/setddblock || build_status=$?
 
-# Default build status to 0 if it succeeded
-build_status="${build_status:-0}"
+# Fail if the build status is non-zero
+if [ "${build_status:-0}" -ne 0 ]; then
+    echo "Error: Build failed with status $build_status"
+    exit $build_status
+fi
+
 
 echo "Acquiring lock and running sleep command..."
 AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy ./setddblock -nX --endpoint $DYNAMODB_LOCAL_ENDPOINT ddb://test-table/test-item /bin/sh -c 'echo "Lock acquired! Sleeping..."; sleep 2' &
@@ -84,8 +88,20 @@ echo "Lock acquisition failed as expected."
 # Wait for the background process to finish
 wait
 
-# Default CLI test status to 0 if it passed
+# # Default CLI test status to 0 if it passed
 cli_test_status="${cli_test_status:-0}"
+
+
+echo "Testing --timeout"
+AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy ./setddblock -nX --timeout 1s --endpoint $DYNAMODB_LOCAL_ENDPOINT ddb://test-table/test-item /bin/sh -c 'echo "Lock acquired! Sleeping..."; sleep 10' || timeout_test_status=$?
+
+if [ "${timeout_test_status:-0}" == 5 ]; then
+    echo "Timeout test failed as expected with status $timeout_test_status"
+else
+    echo "Error: Timeout test did not fail as expected, exit code $timeout_test_status"
+    timeout_test_status=1
+fi
+
 
 # Stop DynamoDB Local
 echo "Stopping DynamoDB Local..."
@@ -94,6 +110,7 @@ docker-compose down
 # Log the status of each step
 if [ "$build_status" -ne 0 ]; then
   echo "Build failed with status $build_status"
+  exit $build_status
 fi
 
 if [ "$lint_status" -ne 0 ]; then
@@ -108,5 +125,9 @@ if [ "$cli_test_status" -ne 0 ]; then
   echo "CLI test failed with status $cli_test_status"
 fi
 
-# Exit with the combined status of build, lint, test, and CLI test
-exit $((build_status + lint_status + test_status + cli_test_status))
+if [ "$timeout_test_status" -ne 0 ]; then
+  echo "Timeout test failed with status $timeout_test_status"
+fi
+
+# Exit with the combined status of lint, test, CLI test, and timeout test
+exit $((lint_status + test_status + cli_test_status + timeout_test_status))
