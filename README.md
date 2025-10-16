@@ -49,6 +49,7 @@ the required IAM Policy is as follows:
                 "dynamodb:CreateTable",
                 "dynamodb:UpdateTimeToLive",
                 "dynamodb:PutItem",
+                "dynamodb:DeleteItem",
                 "dynamodb:DescribeTable",
                 "dynamodb:GetItem",
                 "dynamodb:UpdateItem"
