@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Songmu/flextime"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -158,7 +159,7 @@ func (parms *lockInput) String() string {
 }
 
 func (parms *lockInput) caluTime() (time.Time, time.Time) {
-	nextHeartbeatLimit := time.Now().Add(parms.LeaseDuration)
+	nextHeartbeatLimit := flextime.Now().Add(parms.LeaseDuration)
 	ttl := nextHeartbeatLimit.Add(parms.LeaseDuration / 2).Truncate(time.Second).Add(time.Second)
 	return nextHeartbeatLimit, ttl
 }
@@ -186,6 +187,7 @@ type lockOutput struct {
 	LeaseDuration      time.Duration
 	NextHeartbeatLimit time.Time
 	Revision           string
+	ExpireTime         time.Time
 }
 
 var (
@@ -202,8 +204,8 @@ func (output *lockOutput) String() string {
 	)
 }
 
-func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.DebugContext(ctx, "AquireLock", slog.Any("params", parms))
+func (svc *dynamoDBService) AcquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
+    svc.logger.DebugContext(ctx, "AcquireLock", slog.Any("params", parms))
 	var ret *lockOutput
 	var err error
 	if parms.PrevRevision == nil {
@@ -277,12 +279,17 @@ func (svc *dynamoDBService) getItemForLock(ctx context.Context, parms *lockInput
 	if !ok || revision == "" {
 		return nil, errMaybeRaceDeleted
 	}
+	ttl, ok := readAttributeValueMemberN(output.Item, "ttl")
+	if !ok {
+		return nil, errMaybeRaceDeleted
+	}
 
 	return &lockOutput{
 		LockGranted:        false,
 		LeaseDuration:      leaseDuration,
 		Revision:           revision,
-		NextHeartbeatLimit: time.Now().Add(leaseDuration).Truncate(time.Millisecond),
+		NextHeartbeatLimit: flextime.Now().Add(leaseDuration).Truncate(time.Millisecond),
+		ExpireTime:         time.Unix(ttl, 0),
 	}, nil
 }
 
