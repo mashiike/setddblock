@@ -25,7 +25,7 @@ jobs:
           port: 8000
           cors: "*"
       - name: Set up Go
-        uses: actions/setup-go@0caeaed6fd66a828038c2da3c0f662a42862658f # v1
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v1
         with:
           go-version: ${{ matrix.go }}
         id: go
