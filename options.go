@@ -2,6 +2,8 @@ package setddblock
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"time"
 )
 
@@ -9,7 +11,7 @@ import (
 // See the WithXXX options for more information.
 type Options struct {
 	NoPanic       bool
-	Logger        Logger
+	Logger        *slog.Logger
 	Delay         bool
 	Endpoint      string
 	Region        string
@@ -24,7 +26,7 @@ var (
 
 func newOptions() *Options {
 	return &Options{
-		Logger:        voidLogger{},
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError})),
 		LeaseDuration: DefaultLeaseDuration,
 		Delay:         true,
 		ctx:           context.Background(),
@@ -47,23 +49,10 @@ func WithDelay(delay bool) func(opts *Options) {
 	}
 }
 
-// Logger is a Logging interface used inside DynamoDB Locker
-type Logger interface {
-	Print(v ...interface{})
-	Printf(format string, v ...interface{})
-	Println(v ...interface{})
-}
-
-type voidLogger struct{}
-
-func (voidLogger) Print(v ...interface{})                 {}
-func (voidLogger) Printf(format string, v ...interface{}) {}
-func (voidLogger) Println(v ...interface{})               {}
-
 // WithLogger is a setting to enable the log output of DynamoDB Locker. By default, Logger that does not output anywhere is specified.
-func WithLogger(logger Logger) func(opts *Options) {
+func WithLogger(logger *slog.Logger) func(opts *Options) {
 	return func(opts *Options) {
-		opts.Logger = logger
+		opts.Logger = logger.With("component", "setddblock")
 	}
 }
 

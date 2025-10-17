@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"runtime"
@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/fujiwara/logutils"
 	"github.com/mashiike/setddblock"
 )
 
@@ -94,20 +92,13 @@ func _main() int {
 	if offset > 0 {
 		args = append(args[0:offset], args[offset+1:]...)
 	}
-	filter := &logutils.LevelFilter{
-		Levels:   []logutils.LogLevel{"debug", "warn", "error"},
-		MinLevel: "warn",
-		ModifierFuncs: []logutils.ModifierFunc{
-			logutils.Color(color.FgHiBlack),
-			logutils.Color(color.FgYellow),
-			logutils.Color(color.FgRed, color.Bold),
-		},
-		Writer: os.Stderr,
-	}
+	minLevel := slog.LevelInfo
 	if debug {
-		filter.MinLevel = logutils.LogLevel("debug")
+		minLevel = slog.LevelDebug
 	}
-	logger := log.New(filter, "", log.LstdFlags|log.Lmsgprefix)
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: minLevel,
+	}))
 	// -N and -n both specified, Delay is true by default
 	// -N and -n both not specified, Delay is true by default
 	// -N specified, -n not specified, Delay is true
@@ -123,14 +114,14 @@ func _main() int {
 	}
 	locker, err := setddblock.New(args[0], optFns...)
 	if err != nil {
-		logger.Println("[error][setddblock]", err)
+		fmt.Fprintf(os.Stderr, "setddblock: failed to create locker: %v\n", err)
 		return 2
 	}
 	ctx := context.Background()
 	if timeout != "" {
 		t, err := time.ParseDuration(timeout)
 		if err != nil {
-			logger.Println("[error][setddblock] failed timeout parse: ", err)
+			fmt.Fprintf(os.Stderr, "setddblock: failed to parse timeout: %v\n", err)
 			return 7
 		}
 		var cancel context.CancelFunc
@@ -139,11 +130,11 @@ func _main() int {
 	}
 	lockGranted, err := locker.LockWithErr(ctx)
 	if err != nil {
-		logger.Println("[error][setddblock]", err)
+		fmt.Fprintf(os.Stderr, "setddblock: failed to acquire lock: %v\n", err)
 		return 6
 	}
 	if !lockGranted {
-		logger.Println("[warn][setddblock] lock was not granted")
+		fmt.Fprintf(os.Stderr, "setddblock: lock was not granted\n")
 		if x && !X {
 			return 0
 		}
@@ -158,7 +149,7 @@ func _main() int {
 
 	err = cmd.Run()
 	if err != nil {
-		logger.Printf("[error][setddblock] setddblock: fatal: unable to run %s\n", err)
+		fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
 		return 5
 	}
 	return 0
