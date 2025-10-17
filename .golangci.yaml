@@ -1,34 +1,66 @@
-linters-settings:
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/my_org
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    ignore: '[rR]ead|[w|W]rite|[c|C]lose|[c|C]ommit|[r|R]ollback|[p|P]rintln'
+version: 2
 
 linters:
-  disable-all: true
+  default: standard
   enable:
-    - govet
+    - unconvert
+    - gosec
+    - cyclop
     - revive
-    - gocyclo
+    - depguard
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (*encoding/json.Decoder).Decode
+        - (io.Closer).Close
+        - (io/fs.File).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (net/http.ResponseWriter).Write
+
+    revive:
+      max-open-files: 2048
+      rules:
+        - name: blank-imports
+          severity: warning
+          disabled: false
+        - name: exported
+          disabled: true
+    gosec:
+      excludes:
+        - G115
+        - G204
+        - G104
+        - G304
+    cyclop:
+      max-complexity: 30
+    depguard:
+      rules:
+        main:
+          list-mode: lax
+          deny:
+            - pkg: "math/rand$"
+              desc: use math/rand/v2
+            - pkg: "github.com/aws/aws-sdk-go/"
+              desc: use github.com/aws/aws-sdk-go-v2
+run:
+  tests: false
+  timeout: 15m
+  concurrency: 15
+  relative-path-mode: gomod
+  issues-exit-code: 2
+
+formatters:
+  enable:
     - gofmt
     - goimports
-    - errcheck
-    - unconvert
-    - ineffassign
-    - typecheck
-    - unused
-    - staticcheck
-
-run:
-  deadline: 5m
-  skip-dirs:
-    - vendor
-    - third_party
-  skip-files:
-    - ".*\\.gen\\.go"
-    - ".*_test\\.go"
-
+  settings:
+    gofmt:
+      simplify: true
+  exclusions:
+    paths:
+      - ".*\\.gen\\.go$"
