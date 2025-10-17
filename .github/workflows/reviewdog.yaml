@@ -19,18 +19,7 @@ jobs:
           golangci_lint_flags: "--config=.golangci.yaml"
           filter_mode: diff_context
           reporter: github-pr-review
-          fail_on_error: true
-
-  staticcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-      - uses: reviewdog/action-staticcheck@50f9bfcf3738839ddc95deac241b904d77469096 # v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: github-pr-review
-          filter_mode: diff_context
-          fail_on_error: true
+          fail_level: error
 
   actionlint:
     runs-on: ubuntu-latest
@@ -40,7 +29,7 @@ jobs:
         with:
           reporter: github-pr-review
           filter_mode: diff_context
-          fail_on_error: true
+          fail_level: error
 
   misspell:
     runs-on: ubuntu-latest
@@ -51,4 +40,4 @@ jobs:
           reporter: github-pr-review
           level: warning
           filter_mode: diff_context
-          fail_on_error: true
+          fail_level: error
