@@ -10,7 +10,7 @@ require (
 	github.com/fujiwara/logutils v1.1.2
 	github.com/google/uuid v1.6.0
 	github.com/shogo82148/go-retry v1.3.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
