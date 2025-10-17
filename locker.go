@@ -3,6 +3,7 @@ package setddblock
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -11,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// DynamoDB Locker implements the sync.Locker interface and provides a Lock mechanism using DynamoDB.
+// DynamoDBLocker implements the sync.Locker interface and provides a Lock mechanism using DynamoDB.
 type DynamoDBLocker struct {
 	mu            sync.Mutex
 	lastError     error
@@ -20,7 +21,7 @@ type DynamoDBLocker struct {
 	noPanic       bool
 	delay         bool
 	svc           *dynamoDBService
-	logger        Logger
+	logger        *slog.Logger
 	leaseDuration time.Duration
 	unlockSignal  chan struct{}
 	locked        bool
@@ -84,7 +85,7 @@ func (l *DynamoDBLocker) generateRevision() (string, error) {
 func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.logger.Println("[debug][setddblock] start LockWithErr")
+	l.logger.DebugContext(ctx, "start LockWithErr")
 	if l.locked {
 		return true, errors.New("aleady lock granted")
 	}
@@ -92,7 +93,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	l.logger.Printf("[debug][setddblock] lock table exists = %v", exists)
+	l.logger.DebugContext(ctx, "check lock table exists", slog.Bool("exists", exists))
 	if !exists {
 		if err := l.svc.CreateLockTable(ctx, l.tableName); err != nil {
 			return false, err
@@ -103,7 +104,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	l.logger.Println("[debug][setddblock] try aquire lock")
+	l.logger.DebugContext(ctx, "try acquire lock")
 	input := &lockInput{
 		TableName:     l.tableName,
 		ItemID:        l.itemID,
@@ -114,13 +115,13 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	l.logger.Println("[debug][setddblock] aquire lock reqult", lockResult)
+	l.logger.DebugContext(ctx, "acquire lock result", slog.Any("result", lockResult))
 	if !lockResult.LockGranted && !l.delay {
 		return false, nil
 	}
 	for !lockResult.LockGranted {
 		sleepTime := time.Until(lockResult.NextHeartbeatLimit)
-		l.logger.Printf("[debug][setddblock] wait for next aquire lock until %s (%s)", lockResult.NextHeartbeatLimit, sleepTime)
+		l.logger.DebugContext(ctx, "wait for next acquire lock until", slog.Time("next_heartbeat_limit", lockResult.NextHeartbeatLimit), slog.Duration("sleep_time", sleepTime))
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
@@ -131,14 +132,14 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		l.logger.Printf("[debug][setddblock] retry aquire lock until %s", input)
+		l.logger.DebugContext(ctx, "retry acquire lock until", slog.Any("input", input))
 		lockResult, err = l.svc.AquireLock(ctx, input)
 		if err != nil {
 			return false, err
 		}
-		l.logger.Printf("[debug][setddblock] now revision %s", lockResult.Revision)
+		l.logger.DebugContext(ctx, "now revision", slog.String("revision", lockResult.Revision))
 	}
-	l.logger.Println("[debug][setddblock] success lock granted")
+	l.logger.DebugContext(ctx, "success lock granted")
 	l.locked = true
 	l.unlockSignal = make(chan struct{})
 	l.wg = sync.WaitGroup{}
@@ -148,19 +149,19 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 			if lockResult != nil {
 				input.PrevRevision = &lockResult.Revision
 				if err := l.svc.ReleaseLock(context.Background(), input); err != nil {
-					l.logger.Printf("[warn][setddblock] release lock failed: %s", err)
+					l.logger.Warn("release lock failed in background heartbeat", slog.String("revision", lockResult.Revision), slog.String("detail", err.Error()))
 				}
 			} else {
-				l.logger.Printf("[warn][setddblock] lock result is nil last error: %s", l.lastError)
+				l.logger.Warn("lock result is nil in background heartbeat", slog.String("detail", l.lastError.Error()))
 			}
 
-			l.logger.Println("[debug][setddblock] finish background heartbeet")
+			l.logger.Debug("finish background heartbeat")
 			l.wg.Done()
 		}()
 		nextHeartbeatTime := lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 		for {
 			sleepTime := time.Until(nextHeartbeatTime)
-			l.logger.Printf("[debug][setddblock] wait for next heartbeet time until %s (%s)", nextHeartbeatTime, sleepTime)
+			l.logger.Debug("wait for next heartbeat time until", slog.Time("next_heartbeat_time", nextHeartbeatTime), slog.Duration("sleep_time", sleepTime))
 			select {
 			case <-ctx.Done():
 				return
@@ -168,24 +169,24 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 				return
 			case <-time.After(sleepTime):
 			}
-			l.logger.Println("[debug][setddblock] try send heartbeet")
+			l.logger.Debug("try send heartbeat")
 			input.PrevRevision = &lockResult.Revision
 			input.Revision, err = l.generateRevision()
 			if err != nil {
 				l.lastError = err
-				l.logger.Println("[error][setddblock] generate revision failed in heartbeat: %s", err)
+				l.logger.Error("generate revision failed in heartbeat", slog.String("detail", err.Error()))
 				continue
 			}
 			lockResult, err = l.svc.SendHeartbeat(ctx, input)
 			if err != nil {
 				l.lastError = err
-				l.logger.Println("[error][setddblock] send heartbeat failed: %s", err)
+				l.logger.Error("send heartbeat failed", slog.String("detail", err.Error()))
 				continue
 			}
 			nextHeartbeatTime = lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 		}
 	}()
-	l.logger.Println("[debug][setddblock] end LockWithErr")
+	l.logger.Debug("end LockWithErr")
 	return true, nil
 }
 
@@ -204,14 +205,14 @@ func (l *DynamoDBLocker) Lock() {
 func (l *DynamoDBLocker) UnlockWithErr(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.logger.Println("[debug][setddblock] start UnlockWithErr")
+	l.logger.DebugContext(ctx, "start UnlockWithErr")
 	if !l.locked {
 		return errors.New("not lock granted")
 	}
 	close(l.unlockSignal)
 	l.locked = false
 	l.wg.Wait()
-	l.logger.Println("[debug][setddblock] end UnlockWithErr")
+	l.logger.DebugContext(ctx, "end UnlockWithErr")
 	return nil
 }
 

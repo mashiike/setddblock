@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ import (
 
 type dynamoDBService struct {
 	client *dynamodb.Client
-	logger Logger
+	logger *slog.Logger
 }
 
 func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
@@ -77,7 +78,7 @@ func (svc *dynamoDBService) waitLockTableActive(ctx context.Context, tableName s
 		if err == nil && exists {
 			return nil
 		}
-		svc.logger.Println("[debug][setddblock] retry lock table exists untile table active")
+		svc.logger.DebugContext(ctx, "retry lock table exists untile table active", slog.String("table_name", tableName))
 	}
 	if err == nil {
 		return fmt.Errorf("table not active")
@@ -95,7 +96,7 @@ func (svc *dynamoDBService) LockTableExists(ctx context.Context, tableName strin
 		}
 		return false, err
 	}
-	svc.logger.Printf("[debug][setddblock] table status is %s", table.Table.TableStatus)
+	svc.logger.DebugContext(ctx, "table status", slog.String("table_name", tableName), slog.String("status", string(table.Table.TableStatus)))
 	if table.Table.TableStatus == types.TableStatusActive || table.Table.TableStatus == types.TableStatusUpdating {
 		return true, nil
 	}
@@ -103,7 +104,7 @@ func (svc *dynamoDBService) LockTableExists(ctx context.Context, tableName strin
 }
 
 func (svc *dynamoDBService) CreateLockTable(ctx context.Context, tableName string) error {
-	svc.logger.Printf("[debug][setddblock] try create table %s", tableName)
+	svc.logger.DebugContext(ctx, "try create table", slog.String("table_name", tableName))
 	output, err := svc.client.CreateTable(ctx, &dynamodb.CreateTableInput{
 		TableName: &tableName,
 		AttributeDefinitions: []types.AttributeDefinition{
@@ -129,11 +130,11 @@ func (svc *dynamoDBService) CreateLockTable(ctx context.Context, tableName strin
 		}
 		return err
 	}
-	svc.logger.Printf("[debug][setddblock] success create table %s", *output.TableDescription.TableArn)
+	svc.logger.DebugContext(ctx, "success create table", slog.String("table_arn", *output.TableDescription.TableArn))
 	if err := svc.waitLockTableActive(ctx, tableName); err != nil {
 		return err
 	}
-	svc.logger.Printf("[debug][setddblock] try update time to live `%s`", tableName)
+	svc.logger.DebugContext(ctx, "try update time to live", slog.String("table_name", tableName))
 	_, err = svc.client.UpdateTimeToLive(ctx, &dynamodb.UpdateTimeToLiveInput{
 		TableName: &tableName,
 		TimeToLiveSpecification: &types.TimeToLiveSpecification{
@@ -144,7 +145,7 @@ func (svc *dynamoDBService) CreateLockTable(ctx context.Context, tableName strin
 	if err != nil {
 		return err
 	}
-	svc.logger.Printf("[debug][setddblock] success update time to live `%s`", tableName)
+	svc.logger.DebugContext(ctx, "success update time to live", slog.String("table_name", tableName))
 	return nil
 }
 
@@ -216,7 +217,7 @@ func (output *lockOutput) String() string {
 }
 
 func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.Printf("[debug][setddblock] AquireLock %s", parms)
+	svc.logger.DebugContext(ctx, "AquireLock", slog.Any("params", parms))
 	var ret *lockOutput
 	var err error
 	if parms.PrevRevision == nil {
@@ -232,7 +233,7 @@ func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*
 	}
 	retrier := retryPolicy.Start(ctx)
 	for retrier.Continue() {
-		svc.logger.Printf("[debug][setddblock] race retry put item or get item")
+		svc.logger.DebugContext(ctx, "race retry put item or get item")
 		ret, err = svc.putItemForLock(ctx, parms)
 		if err != errMaybeRaceDeleted {
 			return ret, err
@@ -243,14 +244,14 @@ func (svc *dynamoDBService) AquireLock(ctx context.Context, parms *lockInput) (*
 
 func (svc *dynamoDBService) putItemForLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
 	item, nextHeartbeatLimit := parms.Item()
-	svc.logger.Printf("[debug][setddblock] try put item to ddb")
+	svc.logger.DebugContext(ctx, "try put item to ddb")
 	_, err := svc.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName:           &parms.TableName,
 		Item:                item,
 		ConditionExpression: aws.String("attribute_not_exists(ID)"),
 	})
 	if err == nil {
-		svc.logger.Printf("[debug][setddblock] lock granted")
+		svc.logger.DebugContext(ctx, "lock granted")
 		return &lockOutput{
 			LockGranted:        true,
 			LeaseDuration:      parms.LeaseDuration,
@@ -259,14 +260,14 @@ func (svc *dynamoDBService) putItemForLock(ctx context.Context, parms *lockInput
 		}, nil
 	}
 	if strings.Contains(err.Error(), "ConditionalCheckFailedException") {
-		svc.logger.Printf("[debug][setddblock] not lock granted")
+		svc.logger.DebugContext(ctx, "not lock granted")
 		return svc.getItemForLock(ctx, parms)
 	}
 	return nil, err
 }
 
 func (svc *dynamoDBService) getItemForLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.Printf("[debug][setddblock] try get item table_name=%s, item_id=%s", parms.TableName, parms.ItemID)
+	svc.logger.DebugContext(ctx, "try get item", slog.String("table_name", parms.TableName), slog.String("item_id", parms.ItemID))
 	output, err := svc.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &parms.TableName,
 		Key: map[string]types.AttributeValue{
@@ -280,7 +281,7 @@ func (svc *dynamoDBService) getItemForLock(ctx context.Context, parms *lockInput
 	if err != nil {
 		return nil, err
 	}
-	svc.logger.Println("[debug][setddblock] get item success")
+	svc.logger.DebugContext(ctx, "get item success")
 	n, ok := readAttributeValueMemberN(output.Item, "LeaseDuration")
 	if !ok {
 		return nil, errMaybeRaceDeleted
@@ -328,15 +329,15 @@ func readAttributeValueMemberS(item map[string]types.AttributeValue, key string)
 }
 
 func (svc *dynamoDBService) updateItemForLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.Printf("[debug][setddblock] try update item to ddb")
+	svc.logger.DebugContext(ctx, "try update item to ddb")
 	ret, err := svc.updateItem(ctx, parms)
 	if err == nil {
-		svc.logger.Printf("[debug][setddblock] success update item to ddb")
-		svc.logger.Printf("[debug][setddblock] lock granted")
+		svc.logger.DebugContext(ctx, "success update item to ddb")
+		svc.logger.DebugContext(ctx, "lock granted")
 		return ret, nil
 	}
 	if strings.Contains(err.Error(), "ConditionalCheckFailedException") {
-		svc.logger.Printf("[debug][setddblock] not lock granted")
+		svc.logger.DebugContext(ctx, "not lock granted")
 		return svc.getItemForLock(ctx, parms)
 	}
 	return nil, err
@@ -385,7 +386,7 @@ var retryPolicy = retry.Policy{
 }
 
 func (svc *dynamoDBService) SendHeartbeat(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-	svc.logger.Printf("[debug][setddblock] sendHeartbeat %s", parms)
+	svc.logger.DebugContext(ctx, "sendHeartbeat", slog.Any("params", parms))
 	if parms.PrevRevision == nil {
 		return nil, errors.New("prev revision is must need")
 	}
@@ -397,7 +398,7 @@ func (svc *dynamoDBService) SendHeartbeat(ctx context.Context, parms *lockInput)
 		if err == nil {
 			return ret, nil
 		}
-		svc.logger.Printf("[warn][setddblock] send heartbeat failed retrying %s, err=%s", parms, err)
+		svc.logger.WarnContext(ctx, "send heartbeat failed retrying", slog.Any("params", parms), slog.String("detail", err.Error()))
 	}
 	return nil, fmt.Errorf("heartbeet failed: %w", err)
 }
@@ -413,13 +414,13 @@ func (svc *dynamoDBService) ReleaseLock(ctx context.Context, parms *lockInput) e
 		if err == nil {
 			return nil
 		}
-		svc.logger.Printf("[warn][setddblock] release lock failed retrying %s, err=%s", parms, err)
+		svc.logger.WarnContext(ctx, "release lock failed retrying", slog.Any("params", parms), slog.String("detail", err.Error()))
 	}
 	return fmt.Errorf("release lock failed: %w", err)
 }
 
 func (svc *dynamoDBService) deleteItemForUnlock(ctx context.Context, parms *lockInput) error {
-	svc.logger.Printf("[debug][setddblock] try delete item to ddb")
+	svc.logger.DebugContext(ctx, "try delete item to ddb")
 	_, err := svc.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &parms.TableName,
 		Key: map[string]types.AttributeValue{
@@ -435,7 +436,7 @@ func (svc *dynamoDBService) deleteItemForUnlock(ctx context.Context, parms *lock
 		},
 	})
 	if err == nil {
-		svc.logger.Printf("[debug][setddblock] success delete item to ddb")
+		svc.logger.DebugContext(ctx, "success delete item to ddb")
 		return nil
 	}
 	if strings.Contains(err.Error(), "ConditionalCheckFailedException") {

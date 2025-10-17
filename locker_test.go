@@ -2,15 +2,13 @@ package setddblock_test
 
 import (
 	"bytes"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/fujiwara/logutils"
 	"github.com/mashiike/setddblock"
 	"github.com/stretchr/testify/require"
 )
@@ -22,17 +20,9 @@ func TestDDBLock(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	var buf bytes.Buffer
-	filter := &logutils.LevelFilter{
-		Levels:   []logutils.LogLevel{"debug", "warn", "error"},
-		MinLevel: "warn",
-		ModifierFuncs: []logutils.ModifierFunc{
-			logutils.Color(color.FgHiBlack),
-			logutils.Color(color.FgYellow),
-			logutils.Color(color.FgRed, color.Bold),
-		},
-		Writer: &buf,
-	}
-	logger := log.New(filter, "", log.LstdFlags|log.Lmsgprefix)
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+	}))
 
 	var wgStart, wgEnd sync.WaitGroup
 	wgStart.Add(1)
