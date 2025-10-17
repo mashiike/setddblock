@@ -17,7 +17,7 @@ type Options struct {
 	ctx           context.Context
 }
 
-//Default values
+// Default values
 var (
 	DefaultLeaseDuration = 10 * time.Second
 )
@@ -40,7 +40,7 @@ func WithNoPanic() func(opts *Options) {
 }
 
 // WithDelay will delay the acquisition of the lock if it fails to acquire the lock. This is similar to the N option of setlock.
-//The default is delay enalbed(true). Specify false if you want to exit immediately if Lock acquisition fails.
+// The default is delay enalbed(true). Specify false if you want to exit immediately if Lock acquisition fails.
 func WithDelay(delay bool) func(opts *Options) {
 	return func(opts *Options) {
 		opts.Delay = delay
