@@ -10,24 +10,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Songmu/flextime"
 	"github.com/google/uuid"
 )
 
 // DynamoDBLocker implements the sync.Locker interface and provides a Lock mechanism using DynamoDB.
 type DynamoDBLocker struct {
-	mu            sync.Mutex
-	lastError     error
-	tableName     string
-	itemID        string
-	noPanic       bool
-	delay         bool
-	svc           *dynamoDBService
-	logger        *slog.Logger
-	leaseDuration time.Duration
-	unlockSignal  chan struct{}
-	locked        bool
-	wg            sync.WaitGroup
-	defaultCtx    context.Context
+	mu                sync.Mutex
+	lastError         error
+	tableName         string
+	itemID            string
+	noPanic           bool
+	delay             bool
+	svc               *dynamoDBService
+	logger            *slog.Logger
+	leaseDuration     time.Duration
+	expireGracePeriod time.Duration
+	unlockSignal      chan struct{}
+	locked            bool
+	wg                sync.WaitGroup
+	defaultCtx        context.Context
 }
 
 // New returns *DynamoDBLocker
@@ -62,14 +64,15 @@ func New(urlStr string, optFns ...func(*Options)) (*DynamoDBLocker, error) {
 		return nil, err
 	}
 	return &DynamoDBLocker{
-		logger:        opts.Logger,
-		noPanic:       opts.NoPanic,
-		delay:         opts.Delay,
-		tableName:     tableName,
-		itemID:        itemID,
-		svc:           svc,
-		leaseDuration: opts.LeaseDuration,
-		defaultCtx:    opts.ctx,
+		logger:            opts.Logger,
+		noPanic:           opts.NoPanic,
+		delay:             opts.Delay,
+		tableName:         tableName,
+		itemID:            itemID,
+		svc:               svc,
+		leaseDuration:     opts.LeaseDuration,
+		expireGracePeriod: opts.ExpireGracePeriod,
+		defaultCtx:        opts.ctx,
 	}, nil
 }
 
@@ -79,6 +82,32 @@ func (l *DynamoDBLocker) generateRevision() (string, error) {
 		return "", err
 	}
 	return u.String(), nil
+}
+
+func (l *DynamoDBLocker) acquireLock(ctx context.Context, input *lockInput) (*lockOutput, error) {
+	lockResult, err := l.svc.AcquireLock(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	l.logger.DebugContext(ctx, "acquire lock result", slog.Any("result", lockResult))
+	if !lockResult.LockGranted && l.expireGracePeriod > 0 {
+		// Check if the existing lock has expired
+		if flextime.Since(lockResult.ExpireTime) > l.expireGracePeriod {
+			l.logger.WarnContext(ctx, "existing lock has expired, try to force acquire lock", slog.Time("expire_time", lockResult.ExpireTime))
+			input.PrevRevision = &lockResult.Revision
+			input.Revision, err = l.generateRevision()
+			if err != nil {
+				return nil, err
+			}
+			l.logger.DebugContext(ctx, "try force acquire lock", slog.Any("input", input))
+			lockResult, err = l.svc.AcquireLock(ctx, input)
+			if err != nil {
+				return nil, err
+			}
+			l.logger.DebugContext(ctx, "force acquire lock result", slog.Any("result", lockResult))
+		}
+	}
+	return lockResult, nil
 }
 
 // LockWithErr try get lock.
@@ -112,16 +141,15 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		LeaseDuration: l.leaseDuration,
 		Revision:      rev,
 	}
-	lockResult, err := l.svc.AquireLock(ctx, input)
+	lockResult, err := l.acquireLock(ctx, input)
 	if err != nil {
 		return false, err
 	}
-	l.logger.DebugContext(ctx, "acquire lock result", slog.Any("result", lockResult))
 	if !lockResult.LockGranted && !l.delay {
 		return false, nil
 	}
 	for !lockResult.LockGranted {
-		sleepTime := time.Until(lockResult.NextHeartbeatLimit)
+		sleepTime := flextime.Until(lockResult.NextHeartbeatLimit)
 		l.logger.DebugContext(ctx, "wait for next acquire lock until", slog.Time("next_heartbeat_limit", lockResult.NextHeartbeatLimit), slog.Duration("sleep_time", sleepTime))
 		select {
 		case <-ctx.Done():
@@ -134,7 +162,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 			return false, err
 		}
 		l.logger.DebugContext(ctx, "retry acquire lock until", slog.Any("input", input))
-		lockResult, err = l.svc.AquireLock(ctx, input)
+		lockResult, err = l.acquireLock(ctx, input)
 		if err != nil {
 			return false, err
 		}
@@ -161,7 +189,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 		}()
 		nextHeartbeatTime := lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 		for {
-			sleepTime := time.Until(nextHeartbeatTime)
+			sleepTime := flextime.Until(nextHeartbeatTime)
 			l.logger.Debug("wait for next heartbeat time until", slog.Time("next_heartbeat_time", nextHeartbeatTime), slog.Duration("sleep_time", sleepTime))
 			select {
 			case <-ctx.Done():

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Songmu/flextime"
 	"github.com/mashiike/setddblock"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestDDBLock(t *testing.T) {
 			total1 += 1
 			time.Sleep(10 * time.Millisecond)
 		}
-		lastTime1 = time.Now()
+		lastTime1 = flextime.Now()
 		t.Logf("f1 wroker_id = %d finish", workerID)
 	}
 	f2 := func(workerID int, l sync.Locker) {
@@ -58,7 +59,7 @@ func TestDDBLock(t *testing.T) {
 			total2 += 1
 			time.Sleep(20 * time.Millisecond)
 		}
-		lastTime2 = time.Now()
+		lastTime2 = flextime.Now()
 
 		t.Logf("f2 wroker_id = %d finish", workerID)
 	}

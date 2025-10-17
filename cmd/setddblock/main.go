@@ -27,6 +27,7 @@ func _main() int {
 	var (
 		n, N, x, X, debug, versionFlag bool
 		endpoint, region, timeout      string
+		expireGracePeriod              time.Duration
 	)
 	flag.CommandLine.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: setddblock [ -nNxX ] [--endpoint <endpoint>] [--debug --version] ddb://<table_name>/<item_id> your_command\n")
@@ -41,6 +42,7 @@ func _main() int {
 	flag.StringVar(&endpoint, "endpoint", "", "If you switch remote, set AWS DynamoDB endpoint url.")
 	flag.StringVar(&region, "region", "", "aws region")
 	flag.StringVar(&timeout, "timeout", "", "set command timeout")
+	flag.DurationVar(&expireGracePeriod, "expire-grace-period", 0, "set expire grace period duration after TTL expiration")
 
 	args := make([]string, 1, len(os.Args))
 	args[0] = os.Args[0]
@@ -108,6 +110,9 @@ func _main() int {
 		setddblock.WithDelay(delay),
 		setddblock.WithLogger(logger),
 		setddblock.WithRegion(region),
+	}
+	if expireGracePeriod > 0 {
+		optFns = append(optFns, setddblock.WithExpireGracePeriod(expireGracePeriod))
 	}
 	if endpoint != "" {
 		optFns = append(optFns, setddblock.WithEndpoint(endpoint))

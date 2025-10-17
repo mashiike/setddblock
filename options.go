@@ -10,13 +10,14 @@ import (
 // Options are for changing the behavior of DynamoDB Locker and are changed by the function passed to the New () function.
 // See the WithXXX options for more information.
 type Options struct {
-	NoPanic       bool
-	Logger        *slog.Logger
-	Delay         bool
-	Endpoint      string
-	Region        string
-	LeaseDuration time.Duration
-	ctx           context.Context
+	NoPanic           bool
+	Logger            *slog.Logger
+	Delay             bool
+	Endpoint          string
+	Region            string
+	LeaseDuration     time.Duration
+	ExpireGracePeriod time.Duration
+	ctx               context.Context
 }
 
 // Default values
@@ -81,5 +82,20 @@ func WithLeaseDuration(d time.Duration) func(opts *Options) {
 func WithContext(ctx context.Context) func(opts *Options) {
 	return func(opts *Options) {
 		opts.ctx = ctx
+	}
+}
+
+// WithExpireGracePeriod specifies the grace period after the lease expires
+// during which the lock can still be reclaimed.
+//
+// If the grace period is greater than zero, the lock may be forcibly
+// reacquired once both the lease has expired and the specified grace
+// period has elapsed.
+//
+// If the grace period is zero or negative, automatic reclamation is disabled;
+// expired locks will remain until removed by DynamoDB's TTL mechanism.
+func WithExpireGracePeriod(d time.Duration) func(opts *Options) {
+	return func(opts *Options) {
+		opts.ExpireGracePeriod = d
 	}
 }
