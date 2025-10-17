@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup DynamoDB Local
-        uses: rrainn/dynamodb-action@a06c055690d5d639a9d9e6cdad7398ad950033d7 # v2.0.0
+        uses: rrainn/dynamodb-action@36eaff1005b37a22258716d4280f9e0377b834aa # v4.0.0
         with:
           port: 8000
           cors: "*"
