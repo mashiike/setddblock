@@ -32,25 +32,11 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 	awsOpts := []func(*awsConfig.LoadOptions) error{
 		awsConfig.WithRegion(opts.Region),
 	}
+	dynamoDBOpts := []func(*dynamodb.Options){}
 	if opts.Endpoint != "" {
-		awsOpts = append(awsOpts, awsConfig.WithEndpointResolverWithOptions(
-			aws.EndpointResolverWithOptionsFunc(
-				func(service, region string, _ ...interface{}) (aws.Endpoint, error) {
-					if opts.Region != "" && opts.Region != region {
-						return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-					}
-					switch service {
-					case dynamodb.ServiceID:
-						return aws.Endpoint{
-							PartitionID:   "aws",
-							URL:           opts.Endpoint,
-							SigningRegion: region,
-						}, nil
-					}
-					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-				},
-			),
-		))
+		dynamoDBOpts = append(dynamoDBOpts, func(o *dynamodb.Options) {
+			o.BaseEndpoint = aws.String(opts.Endpoint)
+		})
 	}
 
 	awsCfg, err := awsConfig.LoadDefaultConfig(opts.ctx, awsOpts...)
@@ -58,7 +44,7 @@ func newDynamoDBService(opts *Options) (*dynamoDBService, error) {
 		return nil, err
 	}
 	return &dynamoDBService{
-		client: dynamodb.NewFromConfig(awsCfg),
+		client: dynamodb.NewFromConfig(awsCfg, dynamoDBOpts...),
 		logger: opts.Logger,
 	}, nil
 }
