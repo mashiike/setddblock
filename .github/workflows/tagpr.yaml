@@ -24,7 +24,7 @@ jobs:
         with:
             go-version: "1.21"
       - name: Run Go Releaser
-        uses: goreleaser/goreleaser-action@5742e2a039330cbb23ebf35f046f814d4c6ff811 # v5
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v5
         if: ${{ steps.tagpr.outputs.tag != '' }}
         with:
           version: latest
