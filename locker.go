@@ -1,3 +1,4 @@
+// Package setddblock provides a distributed lock mechanism using DynamoDB.
 package setddblock
 
 import (
