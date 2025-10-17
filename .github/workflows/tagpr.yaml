@@ -10,21 +10,21 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
       - id: tagpr
-        uses: Songmu/tagpr@v1
+        uses: Songmu/tagpr@9c294c8b7b1815a5f3b7c61d6ee6aa50ac25b030 # v1
       - name: Checkout released
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         if: ${{ steps.tagpr.outputs.tag != '' }}
         with:
           ref: ${{ steps.tagpr.outputs.tag }}
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@19bb51245e9c80abacb2e91cc42b33fa478b8639 # v4
         if: ${{ steps.tagpr.outputs.tag != '' }}
         with:
             go-version: "1.21"
       - name: Run Go Releaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@5742e2a039330cbb23ebf35f046f814d4c6ff811 # v5
         if: ${{ steps.tagpr.outputs.tag != '' }}
         with:
           version: latest
