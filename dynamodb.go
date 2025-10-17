@@ -205,7 +205,7 @@ func (output *lockOutput) String() string {
 }
 
 func (svc *dynamoDBService) AcquireLock(ctx context.Context, parms *lockInput) (*lockOutput, error) {
-    svc.logger.DebugContext(ctx, "AcquireLock", slog.Any("params", parms))
+	svc.logger.DebugContext(ctx, "AcquireLock", slog.Any("params", parms))
 	var ret *lockOutput
 	var err error
 	if parms.PrevRevision == nil {
