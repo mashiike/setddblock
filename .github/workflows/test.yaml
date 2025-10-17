@@ -18,6 +18,14 @@ jobs:
           - "1.25"
     name: Build
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: dummy0creds
+      AWS_SECRET_ACCESS_KEY: dummy0creds
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:3.1.0
+        ports:
+          - 8000:8000
     steps:
       - name: Setup DynamoDB Local
         uses: rrainn/dynamodb-action@a06c055690d5d639a9d9e6cdad7398ad950033d7 # v2.0.0
