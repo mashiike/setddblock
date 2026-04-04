@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.6.1](https://github.com/mashiike/setddblock/compare/v0.6.0...v0.6.1) - 2026-04-04
+- Fix typo in WithDelay function comment by @shogo82148 in https://github.com/mashiike/setddblock/pull/193
+
 ## [v0.6.0](https://github.com/mashiike/setddblock/compare/v0.5.0...v0.6.0) - 2025-10-17
 - Update README.md - add DeleteItem by @keen99 in https://github.com/mashiike/setddblock/pull/165
 - Bump github.com/aws/aws-sdk-go-v2/config from 1.27.4 to 1.27.16 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/163
