@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.6.2](https://github.com/mashiike/setddblock/compare/v0.6.1...v0.6.2) - 2026-04-05
+- Bump Songmu/tagpr from 1.9.0 to 1.10.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/192
+- Bump actions/checkout from 5.0.0 to 6.0.1 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/191
+- Bump the aws-sdk-go-v2 group with 3 updates by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/184
+- Bump reviewdog/action-misspell from 1.26.3 to 1.27.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/185
+- Bump reviewdog/action-actionlint from 1.68.0 to 1.69.1 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/190
+- Bump actions/setup-go from 6.0.0 to 6.1.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/188
+
 ## [v0.6.1](https://github.com/mashiike/setddblock/compare/v0.6.0...v0.6.1) - 2026-04-04
 - Fix typo in WithDelay function comment by @shogo82148 in https://github.com/mashiike/setddblock/pull/193
 
