@@ -17,6 +17,7 @@ import (
 // DynamoDBLocker implements the sync.Locker interface and provides a Lock mechanism using DynamoDB.
 type DynamoDBLocker struct {
 	mu                sync.Mutex
+	errMu             sync.Mutex
 	lastError         error
 	tableName         string
 	itemID            string
@@ -173,48 +174,7 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	l.unlockSignal = make(chan struct{})
 	l.wg = sync.WaitGroup{}
 	l.wg.Add(1)
-	go func() {
-		defer func() {
-			if lockResult != nil {
-				input.PrevRevision = &lockResult.Revision
-				if err := l.svc.ReleaseLock(context.Background(), input); err != nil {
-					l.logger.Warn("release lock failed in background heartbeat", slog.String("revision", lockResult.Revision), slog.String("detail", err.Error()))
-				}
-			} else {
-				l.logger.Warn("lock result is nil in background heartbeat", slog.String("detail", l.lastError.Error()))
-			}
-
-			l.logger.Debug("finish background heartbeat")
-			l.wg.Done()
-		}()
-		nextHeartbeatTime := lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
-		for {
-			sleepTime := flextime.Until(nextHeartbeatTime)
-			l.logger.Debug("wait for next heartbeat time until", slog.Time("next_heartbeat_time", nextHeartbeatTime), slog.Duration("sleep_time", sleepTime))
-			select {
-			case <-ctx.Done():
-				return
-			case <-l.unlockSignal:
-				return
-			case <-time.After(sleepTime):
-			}
-			l.logger.Debug("try send heartbeat")
-			input.PrevRevision = &lockResult.Revision
-			input.Revision, err = l.generateRevision()
-			if err != nil {
-				l.lastError = err
-				l.logger.Error("generate revision failed in heartbeat", slog.String("detail", err.Error()))
-				continue
-			}
-			lockResult, err = l.svc.SendHeartbeat(ctx, input)
-			if err != nil {
-				l.lastError = err
-				l.logger.Error("send heartbeat failed", slog.String("detail", err.Error()))
-				continue
-			}
-			nextHeartbeatTime = lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
-		}
-	}()
+	go l.heartbeat(ctx, input, lockResult)
 	l.logger.Debug("end LockWithErr")
 	return true, nil
 }
@@ -252,16 +212,73 @@ func (l *DynamoDBLocker) Unlock() {
 	}
 }
 
+// heartbeat keeps extending the lease of the granted lock until unlocked or ctx is done,
+// and releases the lock when it finishes.
+func (l *DynamoDBLocker) heartbeat(ctx context.Context, input *lockInput, lockResult *lockOutput) {
+	defer func() {
+		input.PrevRevision = &lockResult.Revision
+		if err := l.svc.ReleaseLock(context.Background(), input); err != nil {
+			l.logger.Warn("release lock failed in background heartbeat", slog.String("revision", lockResult.Revision), slog.String("detail", err.Error()))
+		}
+		l.logger.Debug("finish background heartbeat")
+		l.wg.Done()
+	}()
+	nextHeartbeatTime := lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
+	for {
+		sleepTime := flextime.Until(nextHeartbeatTime)
+		l.logger.Debug("wait for next heartbeat time until", slog.Time("next_heartbeat_time", nextHeartbeatTime), slog.Duration("sleep_time", sleepTime))
+		select {
+		case <-ctx.Done():
+			return
+		case <-l.unlockSignal:
+			return
+		case <-time.After(sleepTime):
+		}
+		l.logger.Debug("try send heartbeat")
+		// On failure, retry after a short interval with the last successful revision.
+		retryTime := flextime.Now().Add(time.Duration(float64(lockResult.LeaseDuration) * 0.2))
+		input.PrevRevision = &lockResult.Revision
+		rev, err := l.generateRevision()
+		if err != nil {
+			l.setLastErr(err)
+			l.logger.Error("generate revision failed in heartbeat", slog.String("detail", err.Error()))
+			nextHeartbeatTime = retryTime
+			continue
+		}
+		input.Revision = rev
+		result, err := l.svc.SendHeartbeat(ctx, input)
+		if err != nil {
+			if errors.Is(err, ErrLockLost) {
+				l.setLastErr(err)
+				l.logger.Error("lock lost, stop heartbeat", slog.String("revision", lockResult.Revision), slog.String("detail", err.Error()))
+				return
+			}
+			l.setLastErr(err)
+			l.logger.Error("send heartbeat failed", slog.String("detail", err.Error()))
+			nextHeartbeatTime = retryTime
+			continue
+		}
+		lockResult = result
+		nextHeartbeatTime = lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
+	}
+}
+
+// LastErr returns the last error that occurred in Lock(), Unlock() or the background heartbeat.
 func (l *DynamoDBLocker) LastErr() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.errMu.Lock()
+	defer l.errMu.Unlock()
 	return l.lastError
 }
 
+// ClearLastErr clears the last error.
 func (l *DynamoDBLocker) ClearLastErr() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.lastError = nil
+	l.setLastErr(nil)
+}
+
+func (l *DynamoDBLocker) setLastErr(err error) {
+	l.errMu.Lock()
+	defer l.errMu.Unlock()
+	l.lastError = err
 }
 
 type bailoutErr struct {
@@ -269,9 +286,7 @@ type bailoutErr struct {
 }
 
 func (l *DynamoDBLocker) bailout(err error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.lastError = err
+	l.setLastErr(err)
 	if !l.noPanic {
 		panic(bailoutErr{err: err})
 	}
