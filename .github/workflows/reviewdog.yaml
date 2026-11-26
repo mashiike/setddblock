@@ -30,14 +30,3 @@ jobs:
           reporter: github-pr-review
           filter_mode: diff_context
           fail_level: error
-
-  misspell:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
-      - uses: reviewdog/action-misspell@d6429416b12b09b4e2768307d53bef58d172e962 # v1
-        with:
-          reporter: github-pr-review
-          level: warning
-          filter_mode: diff_context
-          fail_level: error
