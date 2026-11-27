@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"sort"
 	"strings"
@@ -36,7 +38,7 @@ func _main() int {
 	}
 	flag.BoolVar(&n, "n", false, "No delay. If fn is locked by another process, setlock gives up.")
 	flag.BoolVar(&N, "N", false, "(Default.) Delay. If fn is locked by another process, setlock waits until it can obtain a new lock.")
-	flag.BoolVar(&x, "x", false, "If fn cannot be update-item (or put-item) or locked, setlock exits zero.")
+	flag.BoolVar(&x, "x", false, "If the lock cannot be acquired (held by another process, or DynamoDB is unreachable), setddblock exits zero.")
 	flag.BoolVar(&X, "X", false, "(Default.) If fn cannot be update-item (or put-item) or locked, setlock prints an error message and exits nonzero.")
 	flag.BoolVar(&debug, "debug", false, "show debug log")
 	flag.BoolVar(&versionFlag, "version", false, "show version")
@@ -112,31 +114,85 @@ func _main() int {
 		ctx, cancel = context.WithTimeout(ctx, t)
 		defer cancel()
 	}
-	lockGranted, err := locker.LockWithErr(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "setddblock: failed to acquire lock: %v\n", err)
-		return 6
-	}
-	if !lockGranted {
-		fmt.Fprintf(os.Stderr, "setddblock: lock was not granted\n")
-		if x && !X {
-			return 0
+
+	// Catch termination signals so that the lock is always released on the way out.
+	// While waiting for the lock, a signal aborts the wait.
+	// While the command runs, the signal is forwarded to it (see runCommand).
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, forwardSignals...)
+	defer signal.Stop(sigCh)
+	lockCtx, cancelLock := context.WithCancel(ctx)
+	defer cancelLock()
+	var received os.Signal
+	waitDone := make(chan struct{})
+	watcherExited := make(chan struct{})
+	go func() {
+		defer close(watcherExited)
+		select {
+		case sig := <-sigCh:
+			received = sig
+			cancelLock()
+		case <-waitDone:
 		}
-		return 3
+	}()
+	lockGranted, err := locker.LockWithErr(lockCtx)
+	close(waitDone)
+	<-watcherExited
+	if received != nil {
+		fmt.Fprintf(os.Stderr, "setddblock: received %v while waiting for the lock\n", received)
+		if lockGranted {
+			if err := locker.UnlockWithErr(context.Background()); err != nil {
+				fmt.Fprintf(os.Stderr, "setddblock: failed to release lock: %v\n", err)
+			}
+		}
+		return signalExitCode(received)
+	}
+	if code, ok := lockFailureExitCode(lockGranted, err, x && !X); ok {
+		return code
 	}
 	defer locker.Unlock()
 
-	return runCommand(ctx, locker.LockLost(), args[1], args[2:])
+	return runCommand(ctx, locker.LockLost(), sigCh, args[1], args[2:])
 }
+
+// lockFailureExitCode returns the exit code when the lock could not be acquired.
+// Like setlock, -x makes setddblock exit zero whenever the lock cannot be acquired,
+// whether another process holds it or DynamoDB cannot be reached.
+// ok is false when the lock was granted.
+func lockFailureExitCode(lockGranted bool, err error, exitZero bool) (code int, ok bool) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "setddblock: failed to acquire lock: %v\n", err)
+		if exitZero {
+			return 0, true
+		}
+		return 6, true
+	}
+	if !lockGranted {
+		fmt.Fprintf(os.Stderr, "setddblock: lock was not granted\n")
+		if exitZero {
+			return 0, true
+		}
+		return 3, true
+	}
+	return 0, false
+}
+
+// forwardSignals are the signals passed on to the command.
+// SIGINT is caught but not forwarded: Ctrl-C on a terminal already reaches the command
+// (same process group), and sending it twice can make programs force-quit.
+var forwardSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP}
 
 // exitLockLost is the exit code when the lock was lost while the command was running.
 const exitLockLost = 4
 
-// runCommand runs the command while the lock is held.
+// runCommand runs the command while the lock is held and returns the command's exit code,
+// like setlock which execs the command.
+// Signals received on sigCh (except SIGINT) are forwarded to the command, and setddblock waits
+// for it to exit so the caller can release the lock.
 // If the lock is lost while the command is running, the command is sent SIGTERM
 // (killed on platforms without SIGTERM support) so it never runs without the lock,
 // and setddblock exits with exitLockLost.
-func runCommand(ctx context.Context, lockLost <-chan struct{}, name string, args []string) int {
+func runCommand(ctx context.Context, lockLost <-chan struct{}, sigCh <-chan os.Signal, name string, args []string) int {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -150,25 +206,58 @@ func runCommand(ctx context.Context, lockLost <-chan struct{}, name string, args
 	go func() {
 		done <- cmd.Wait()
 	}()
-	select {
-	case err := <-done:
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
-			return 5
-		}
-		return 0
-	case <-lockLost:
-		fmt.Fprintf(os.Stderr, "setddblock: lock lost, terminating command\n")
-		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			if err := cmd.Process.Kill(); err != nil {
-				fmt.Fprintf(os.Stderr, "setddblock: failed to stop command: %v\n", err)
+	for {
+		select {
+		case err := <-done:
+			if ctx.Err() != nil {
+				fmt.Fprintf(os.Stderr, "setddblock: command stopped: %v\n", ctx.Err())
 			}
+			return commandExitCode(err)
+		case sig := <-sigCh:
+			if sig == syscall.SIGINT {
+				continue
+			}
+			if err := cmd.Process.Signal(sig); err != nil {
+				fmt.Fprintf(os.Stderr, "setddblock: failed to forward %v to command: %v\n", sig, err)
+			}
+		case <-lockLost:
+			fmt.Fprintf(os.Stderr, "setddblock: lock lost, terminating command\n")
+			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+				if err := cmd.Process.Kill(); err != nil {
+					fmt.Fprintf(os.Stderr, "setddblock: failed to stop command: %v\n", err)
+				}
+			}
+			if err := <-done; err != nil {
+				fmt.Fprintf(os.Stderr, "setddblock: command stopped: %v\n", err)
+			}
+			return exitLockLost
 		}
-		if err := <-done; err != nil {
-			fmt.Fprintf(os.Stderr, "setddblock: command stopped: %v\n", err)
-		}
-		return exitLockLost
 	}
+}
+
+// commandExitCode converts the result of cmd.Wait() to an exit code.
+// A command killed by a signal is reported as 128+signal, like a shell does.
+func commandExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
+		return 5
+	}
+	if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+		return signalExitCode(status.Signal())
+	}
+	return exitErr.ExitCode()
+}
+
+// signalExitCode returns 128+signal for a signal, as shells do.
+func signalExitCode(sig os.Signal) int {
+	if s, ok := sig.(syscall.Signal); ok {
+		return 128 + int(s)
+	}
+	return 1
 }
 
 func normalizeArgs(flagSet *flag.FlagSet, osArgs []string) []string {
