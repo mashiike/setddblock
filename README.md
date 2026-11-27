@@ -37,6 +37,25 @@ Flags:
         show version
 ```
 
+### Exit status and signals
+
+setddblock follows [setlock](https://cr.yp.to/daemontools/setlock.html):
+
+- When the command runs, setddblock exits with the command's exit status (128+N if the command was killed by signal N).
+- With `-x`, setddblock exits 0 whenever the lock cannot be acquired: another process holds it (`-n`), or DynamoDB cannot be reached.
+- SIGTERM and SIGHUP are forwarded to the command; setddblock waits for it to exit and then releases the lock. SIGINT is not forwarded, because Ctrl-C on a terminal already reaches the command; setddblock still waits and releases the lock. A signal received while waiting for the lock stops the wait (exit 128+N).
+
+setddblock's own errors (without `-x`):
+
+| code | meaning |
+|------|---------|
+| 2 | invalid `ddb://` URL or options |
+| 3 | the lock is held by another process (`-n`) |
+| 4 | the lock was lost while the command was running; the command was sent SIGTERM |
+| 5 | the command could not be started |
+| 6 | failed to acquire the lock (DynamoDB error, or `--timeout` expired while waiting) |
+| 7 | invalid `--timeout` |
+
 the required IAM Policy is as follows:
 ```json 
 {
