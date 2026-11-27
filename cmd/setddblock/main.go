@@ -164,7 +164,9 @@ func runCommand(ctx context.Context, lockLost <-chan struct{}, name string, args
 				fmt.Fprintf(os.Stderr, "setddblock: failed to stop command: %v\n", err)
 			}
 		}
-		<-done
+		if err := <-done; err != nil {
+			fmt.Fprintf(os.Stderr, "setddblock: command stopped: %v\n", err)
+		}
 		return exitLockLost
 	}
 }
