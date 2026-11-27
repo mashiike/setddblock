@@ -22,7 +22,7 @@ Flags:
   -N
         (Default.) Delay. If fn is locked by another process, setlock waits until it can obtain a new lock.
   -x
-        If fn cannot be update-item (or put-item) or locked, setlock exits zero.
+        If the lock cannot be acquired (held by another process, or DynamoDB is unreachable), setddblock exits zero.
   -X
         (Default.) If fn cannot be update-item (or put-item) or locked, setlock prints an error message and exits nonzero.
   --debug
