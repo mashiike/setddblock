@@ -194,6 +194,15 @@ var (
 	errMaybeRaceDeleted = errors.New("maybe race")
 )
 
+// ErrLockLost is reported (via LastErr) when the lock item was updated or deleted by another process
+// while the lock was held, so the heartbeat can no longer extend the lease.
+var ErrLockLost = errors.New("lock lost")
+
+func isConditionalCheckFailed(err error) bool {
+	var ccf *types.ConditionalCheckFailedException
+	return errors.As(err, &ccf)
+}
+
 func (output *lockOutput) String() string {
 	return fmt.Sprintf(
 		"lock_granted=%v, lease_duration=%s, revision=%s, next_heartbeat_limit=%s",
@@ -391,9 +400,12 @@ func (svc *dynamoDBService) SendHeartbeat(ctx context.Context, parms *lockInput)
 		if err == nil {
 			return ret, nil
 		}
+		if isConditionalCheckFailed(err) {
+			return nil, fmt.Errorf("%w: %w", ErrLockLost, err)
+		}
 		svc.logger.WarnContext(ctx, "send heartbeat failed retrying", slog.Any("params", parms), slog.String("detail", err.Error()))
 	}
-	return nil, fmt.Errorf("heartbeet failed: %w", err)
+	return nil, fmt.Errorf("heartbeat failed: %w", err)
 }
 
 func (svc *dynamoDBService) ReleaseLock(ctx context.Context, parms *lockInput) error {

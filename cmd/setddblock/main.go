@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mashiike/setddblock"
@@ -44,29 +45,7 @@ func _main() int {
 	flag.StringVar(&timeout, "timeout", "", "set command timeout")
 	flag.DurationVar(&expireGracePeriod, "expire-grace-period", 0, "set expire grace period duration after TTL expiration")
 
-	args := make([]string, 1, len(os.Args))
-	args[0] = os.Args[0]
-	for _, arg := range os.Args[1:] {
-		// long flags
-		if strings.HasPrefix(arg, "--") && len(arg) > 2 {
-			if strings.Contains(arg, "=") {
-				parts := strings.SplitN(arg[2:], "=", 2)
-				args = append(args, "--"+parts[0])
-				args = append(args, parts[1])
-			} else {
-				args = append(args, arg)
-			}
-			continue
-		}
-		//short flags
-		if strings.HasPrefix(arg, "-") && len(arg) > 1 {
-			for i := 1; i < len(arg); i++ {
-				args = append(args, "-"+string(arg[i]))
-			}
-			continue
-		}
-		args = append(args, arg)
-	}
+	args := normalizeArgs(flag.CommandLine, os.Args)
 	if err := flag.CommandLine.Parse(args[1:]); err != nil {
 		fmt.Fprintf(flag.CommandLine.Output(), "setddblock: %v\n", err)
 		return 1
@@ -147,17 +126,95 @@ func _main() int {
 	}
 	defer locker.Unlock()
 
-	cmd := exec.CommandContext(ctx, args[1], args[2:]...)
+	return runCommand(ctx, locker.LockLost(), args[1], args[2:])
+}
+
+// exitLockLost is the exit code when the lock was lost while the command was running.
+const exitLockLost = 4
+
+// runCommand runs the command while the lock is held.
+// If the lock is lost while the command is running, the command is sent SIGTERM
+// (killed on platforms without SIGTERM support) so it never runs without the lock,
+// and setddblock exits with exitLockLost.
+func runCommand(ctx context.Context, lockLost <-chan struct{}, name string, args []string) int {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err = cmd.Run()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
 		return 5
 	}
-	return 0
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
+			return 5
+		}
+		return 0
+	case <-lockLost:
+		fmt.Fprintf(os.Stderr, "setddblock: lock lost, terminating command\n")
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			if err := cmd.Process.Kill(); err != nil {
+				fmt.Fprintf(os.Stderr, "setddblock: failed to stop command: %v\n", err)
+			}
+		}
+		if err := <-done; err != nil {
+			fmt.Fprintf(os.Stderr, "setddblock: command stopped: %v\n", err)
+		}
+		return exitLockLost
+	}
+}
+
+func normalizeArgs(flagSet *flag.FlagSet, osArgs []string) []string {
+	args := make([]string, 1, len(osArgs))
+	args[0] = osArgs[0]
+	rest := osArgs[1:]
+	for i := 0; i < len(rest); i++ {
+		arg := rest[i]
+		switch {
+		case arg == "--" || arg == "-" || !strings.HasPrefix(arg, "-"):
+			// end of setddblock's own flags
+			return append(args, rest[i:]...)
+		case strings.HasPrefix(arg, "--"):
+			// long flags
+			name, value, hasValue := strings.Cut(arg[2:], "=")
+			if hasValue && !takesValue(flagSet, name) {
+				// boolean flags such as --debug=false must keep the = form
+				args = append(args, arg)
+				continue
+			}
+			args = append(args, "--"+name)
+			if hasValue {
+				args = append(args, value)
+			} else if takesValue(flagSet, name) && i+1 < len(rest) {
+				i++
+				args = append(args, rest[i])
+			}
+		default:
+			// short flags
+			for j := 1; j < len(arg); j++ {
+				args = append(args, "-"+string(arg[j]))
+			}
+		}
+	}
+	return args
+}
+
+func takesValue(flagSet *flag.FlagSet, name string) bool {
+	f := flagSet.Lookup(name)
+	if f == nil {
+		return false
+	}
+	if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && bf.IsBoolFlag() {
+		return false
+	}
+	return true
 }
 
 func printDefaults(flagSet *flag.FlagSet) {
