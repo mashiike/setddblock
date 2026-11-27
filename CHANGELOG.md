@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.7.0](https://github.com/mashiike/setddblock/compare/v0.6.2...v0.7.0) - 2026-11-27
+- ci: build releases with go.mod's Go version and drop Go 1.23 from tests by @mashiike in https://github.com/mashiike/setddblock/pull/202
+- Bump Songmu/tagpr from 1.10.0 to 1.18.1 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/197
+- Bump actions/setup-go from 6.1.0 to 6.4.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/199
+- Bump reviewdog/action-golangci-lint from 2.8.0 to 2.10.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/200
+- Bump goreleaser/goreleaser-action from 6.4.0 to 7.0.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/201
+- Bump the aws-sdk-go-v2 group with 3 updates by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/196
+- Bump actions/checkout from 6.0.1 to 6.0.2 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/198
+- Fix heartbeat panic and argument rewriting; stop the command when the lock is lost by @mashiike in https://github.com/mashiike/setddblock/pull/204
+- Follow setlock for exit status, -x and signals by @mashiike in https://github.com/mashiike/setddblock/pull/205
+
 ## [v0.6.2](https://github.com/mashiike/setddblock/compare/v0.6.1...v0.6.2) - 2026-04-05
 - Bump Songmu/tagpr from 1.9.0 to 1.10.0 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/192
 - Bump actions/checkout from 5.0.0 to 6.0.1 by @dependabot[bot] in https://github.com/mashiike/setddblock/pull/191
