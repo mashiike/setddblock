@@ -112,6 +112,11 @@ func TestHeartbeatLockLostDoesNotPanic(t *testing.T) {
 
 	require.Eventually(t, func() bool { return l.LastErr() != nil }, 2*time.Second, 10*time.Millisecond)
 	require.ErrorIs(t, l.LastErr(), ErrLockLost)
+	select {
+	case <-l.LockLost():
+	case <-time.After(time.Second):
+		t.Fatal("LockLost channel should be closed")
+	}
 
 	// heartbeat stops after the lock is lost
 	calls, _, _ := fake.stats()
@@ -140,6 +145,11 @@ func TestHeartbeatTransientFailureKeepsLock(t *testing.T) {
 		return calls >= 4
 	}, 2*time.Second, 10*time.Millisecond)
 	require.Error(t, l.LastErr(), "transient failure should be recorded")
+	select {
+	case <-l.LockLost():
+		t.Fatal("LockLost channel should not be closed on a transient failure")
+	default:
+	}
 
 	_, prevRevisions, _ := fake.stats()
 	// the first two (failed) attempts and the retry after them use the same previous revision

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"io"
+	"runtime"
 	"testing"
 	"time"
 
@@ -91,4 +92,25 @@ func TestNormalizeArgsParse(t *testing.T) {
 	require.True(t, *x)
 	require.Equal(t, "http://localhost:8000", *endpoint)
 	require.Equal(t, []string{"ddb://t/i", "find", ".", "-name", "x"}, fs.Args())
+}
+
+func TestRunCommandLockLost(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sleep command")
+	}
+	lost := make(chan struct{})
+	close(lost)
+	start := time.Now()
+	code := runCommand(t.Context(), lost, "sleep", []string{"10"})
+	require.Equal(t, exitLockLost, code)
+	require.Less(t, time.Since(start), 5*time.Second, "command should be terminated when the lock is lost")
+}
+
+func TestRunCommandFinishes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses true/false commands")
+	}
+	require.Equal(t, 0, runCommand(t.Context(), make(chan struct{}), "true", nil))
+	require.Equal(t, 5, runCommand(t.Context(), make(chan struct{}), "false", nil))
+	require.Equal(t, 0, runCommand(t.Context(), nil, "true", nil), "nil lockLost channel never fires")
 }

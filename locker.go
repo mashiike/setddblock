@@ -28,6 +28,7 @@ type DynamoDBLocker struct {
 	leaseDuration     time.Duration
 	expireGracePeriod time.Duration
 	unlockSignal      chan struct{}
+	lockLostSignal    chan struct{}
 	locked            bool
 	wg                sync.WaitGroup
 	defaultCtx        context.Context
@@ -172,9 +173,10 @@ func (l *DynamoDBLocker) LockWithErr(ctx context.Context) (bool, error) {
 	l.logger.DebugContext(ctx, "success lock granted")
 	l.locked = true
 	l.unlockSignal = make(chan struct{})
+	l.lockLostSignal = make(chan struct{})
 	l.wg = sync.WaitGroup{}
 	l.wg.Add(1)
-	go l.heartbeat(ctx, input, lockResult)
+	go l.heartbeat(ctx, input, lockResult, l.unlockSignal, l.lockLostSignal)
 	l.logger.Debug("end LockWithErr")
 	return true, nil
 }
@@ -214,7 +216,7 @@ func (l *DynamoDBLocker) Unlock() {
 
 // heartbeat keeps extending the lease of the granted lock until unlocked or ctx is done,
 // and releases the lock when it finishes.
-func (l *DynamoDBLocker) heartbeat(ctx context.Context, input *lockInput, lockResult *lockOutput) {
+func (l *DynamoDBLocker) heartbeat(ctx context.Context, input *lockInput, lockResult *lockOutput, unlockSignal <-chan struct{}, lockLostSignal chan<- struct{}) {
 	defer func() {
 		input.PrevRevision = &lockResult.Revision
 		if err := l.svc.ReleaseLock(context.Background(), input); err != nil {
@@ -230,7 +232,7 @@ func (l *DynamoDBLocker) heartbeat(ctx context.Context, input *lockInput, lockRe
 		select {
 		case <-ctx.Done():
 			return
-		case <-l.unlockSignal:
+		case <-unlockSignal:
 			return
 		case <-time.After(sleepTime):
 		}
@@ -251,6 +253,7 @@ func (l *DynamoDBLocker) heartbeat(ctx context.Context, input *lockInput, lockRe
 			if errors.Is(err, ErrLockLost) {
 				l.setLastErr(err)
 				l.logger.Error("lock lost, stop heartbeat", slog.String("revision", lockResult.Revision), slog.String("detail", err.Error()))
+				close(lockLostSignal)
 				return
 			}
 			l.setLastErr(err)
@@ -261,6 +264,17 @@ func (l *DynamoDBLocker) heartbeat(ctx context.Context, input *lockInput, lockRe
 		lockResult = result
 		nextHeartbeatTime = lockResult.NextHeartbeatLimit.Add(-time.Duration(float64(lockResult.LeaseDuration) * 0.2))
 	}
+}
+
+// LockLost returns a channel that is closed when the lock granted by the last successful LockWithErr()
+// (or Lock()) is lost, i.e. the lock item was updated or deleted by another process while it was held
+// (for example, forcibly reacquired with WithExpireGracePeriod).
+// When it is closed, the work protected by the lock should be stopped; LastErr() returns an error wrapping ErrLockLost.
+// It returns nil before the first lock is granted.
+func (l *DynamoDBLocker) LockLost() <-chan struct{} {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lockLostSignal
 }
 
 // LastErr returns the last error that occurred in Lock(), Unlock() or the background heartbeat.

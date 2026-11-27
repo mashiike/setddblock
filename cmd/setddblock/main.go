@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mashiike/setddblock"
@@ -125,24 +126,49 @@ func _main() int {
 	}
 	defer locker.Unlock()
 
-	cmd := exec.CommandContext(ctx, args[1], args[2:]...)
+	return runCommand(ctx, locker.LockLost(), args[1], args[2:])
+}
+
+// exitLockLost is the exit code when the lock was lost while the command was running.
+const exitLockLost = 4
+
+// runCommand runs the command while the lock is held.
+// If the lock is lost while the command is running, the command is sent SIGTERM
+// (killed on platforms without SIGTERM support) so it never runs without the lock,
+// and setddblock exits with exitLockLost.
+func runCommand(ctx context.Context, lockLost <-chan struct{}, name string, args []string) int {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err = cmd.Run()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
 		return 5
 	}
-	return 0
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "setddblock: unable to run command: %v\n", err)
+			return 5
+		}
+		return 0
+	case <-lockLost:
+		fmt.Fprintf(os.Stderr, "setddblock: lock lost, terminating command\n")
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			if err := cmd.Process.Kill(); err != nil {
+				fmt.Fprintf(os.Stderr, "setddblock: failed to stop command: %v\n", err)
+			}
+		}
+		<-done
+		return exitLockLost
+	}
 }
 
-// normalizeArgs rewrites setlock style flags into a form the flag package understands:
-// combined short flags (-nx) are split into -n -x, and --flag=value is split into --flag value.
-// Only setddblock's own flags are rewritten. Once the first positional argument
-// (the ddb:// URL) or "--" appears, the rest is passed through as is,
-// so the flags of the wrapped command are not touched.
 func normalizeArgs(flagSet *flag.FlagSet, osArgs []string) []string {
 	args := make([]string, 1, len(osArgs))
 	args[0] = osArgs[0]
